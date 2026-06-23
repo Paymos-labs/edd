@@ -1,0 +1,163 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR Paymos
+# This file is distributed under the same license as the Paymos for Easy Digital Downloads package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Paymos for Easy Digital Downloads 1.0.0\n"
+"Report-Msgid-Bugs-To: support@paymos.io\n"
+"POT-Creation-Date: 2026-06-22 13:04+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: includes/Gateway.php:31 includes/Gateway.php:64
+msgid "Paymos"
+msgstr ""
+
+#: includes/Gateway.php:32 includes/Gateway.php:90
+msgid "Pay with stablecoins"
+msgstr ""
+
+#: includes/Gateway.php:81
+msgid "Paymos settings"
+msgstr ""
+
+#: includes/Gateway.php:82
+msgid ""
+"Sandbox and live credentials are bundled in your generated package. Only "
+"display preferences and the active mode are stored here."
+msgstr ""
+
+#: includes/Gateway.php:87
+msgid "Checkout label"
+msgstr ""
+
+#: includes/Gateway.php:88
+msgid "Shown to customers on EDD checkout."
+msgstr ""
+
+#: includes/Gateway.php:94
+msgid "Mode"
+msgstr ""
+
+#: includes/Gateway.php:95
+msgid "Switch to Live after you finish sandbox testing."
+msgstr ""
+
+#: includes/Gateway.php:98 includes/Gateway.php:309
+msgid "Sandbox"
+msgstr ""
+
+#: includes/Gateway.php:99 includes/Gateway.php:310
+msgid "Live"
+msgstr ""
+
+#: includes/Gateway.php:105
+msgid "Webhook URL"
+msgstr ""
+
+#: includes/Gateway.php:106
+msgid ""
+"Registered automatically with your Paymos project when you generate the "
+"plugin."
+msgstr ""
+
+#: includes/Gateway.php:111
+msgid "Generated config"
+msgstr ""
+
+#: includes/Gateway.php:117
+msgid "Debug logging"
+msgstr ""
+
+#: includes/Gateway.php:118
+msgid "Write redacted Paymos logs to PHP error_log."
+msgstr ""
+
+#: includes/Gateway.php:153
+msgid "Paymos payment error: payment could not be recorded."
+msgstr ""
+
+#: includes/Gateway.php:178
+msgid "Paymos payment error: unable to create invoice."
+msgstr ""
+
+#: includes/Gateway.php:184 includes/Gateway.php:193
+msgid "Paymos payment error: configuration is invalid."
+msgstr ""
+
+#: includes/Gateway.php:202
+msgid "Paymos payment error: invalid invoice response."
+msgstr ""
+
+#: includes/Gateway.php:214
+#, php-format
+msgid "Paymos invoice created: %s"
+msgstr ""
+
+#: includes/Gateway.php:308
+msgid "Active mode"
+msgstr ""
+
+#: includes/Gateway.php:309 includes/Gateway.php:310
+msgid "Configured"
+msgstr ""
+
+#: includes/Gateway.php:309 includes/Gateway.php:310 includes/Gateway.php:317
+msgid "Missing"
+msgstr ""
+
+#: includes/Gateway.php:311
+msgid "Active API key"
+msgstr ""
+
+#: includes/Gateway.php:312
+msgid "Project ID"
+msgstr ""
+
+#: includes/PaymentMapper.php:27
+msgid "Payment already complete — later status update from Paymos disregarded."
+msgstr ""
+
+#: includes/PaymentMapper.php:35
+msgid "Paymos payment is confirming."
+msgstr ""
+
+#: includes/PaymentMapper.php:63
+msgid "Paymos payment completed."
+msgstr ""
+
+#: includes/PaymentMapper.php:68
+msgid "Underpaid — the on-chain amount was less than the invoice total."
+msgstr ""
+
+#: includes/PaymentMapper.php:75
+msgid "Paymos invoice was cancelled or expired."
+msgstr ""
+
+#: includes/StorefrontHooks.php:45 includes/StorefrontHooks.php:76
+msgid "Payment confirmation"
+msgstr ""
+
+#: includes/StorefrontHooks.php:48 includes/StorefrontHooks.php:80
+msgid "View transaction"
+msgstr ""
+
+#: includes/StorefrontHooks.php:78
+msgid "Settled on-chain."
+msgstr ""
+
+#: includes/StorefrontHooks.php:82
+msgid "Transaction:"
+msgstr ""
+
+#: includes/StorefrontHooks.php:96
+msgid "Settings"
+msgstr ""

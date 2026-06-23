@@ -1,0 +1,117 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Paymos for Easy Digital Downloads 1.0.0\n"
+"Report-Msgid-Bugs-To: support@paymos.io\n"
+"PO-Revision-Date: 2026-06-22 13:00+0000\n"
+"Last-Translator: Paymos <support@paymos.io>\n"
+"Language-Team: Paymos <support@paymos.io>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: ru_RU\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<12 || n%100>14) ? 1 : 2);\n"
+
+msgid "Paymos"
+msgstr "Paymos"
+
+msgid "Pay with stablecoins"
+msgstr "Оплата стейблкоинами"
+
+msgid "Paymos settings"
+msgstr "Настройки Paymos"
+
+msgid "Sandbox and live credentials are bundled in your generated package. Only display preferences and the active mode are stored here."
+msgstr "Креды Sandbox и Live вшиты в сгенерированный пакет. Здесь хранятся только параметры отображения и активный режим."
+
+msgid "Checkout label"
+msgstr "Подпись на оформлении"
+
+msgid "Shown to customers on EDD checkout."
+msgstr "Показывается покупателям на оформлении EDD."
+
+msgid "Mode"
+msgstr "Режим"
+
+msgid "Switch to Live after you finish sandbox testing."
+msgstr "Переключите на Live после тестов в песочнице."
+
+msgid "Sandbox"
+msgstr "Sandbox"
+
+msgid "Live"
+msgstr "Live"
+
+msgid "Webhook URL"
+msgstr "URL вебхука"
+
+msgid "Registered automatically with your Paymos project when you generate the plugin."
+msgstr "Регистрируется автоматически в вашем проекте Paymos при генерации плагина."
+
+msgid "Generated config"
+msgstr "Сгенерированная конфигурация"
+
+msgid "Debug logging"
+msgstr "Журнал отладки"
+
+msgid "Write redacted Paymos logs to PHP error_log."
+msgstr "Писать обезличенные логи Paymos в PHP error_log."
+
+msgid "Paymos payment error: payment could not be recorded."
+msgstr "Ошибка оплаты Paymos: не удалось записать платёж."
+
+msgid "Paymos payment error: unable to create invoice."
+msgstr "Ошибка оплаты Paymos: не удалось создать счёт."
+
+msgid "Paymos payment error: configuration is invalid."
+msgstr "Ошибка оплаты Paymos: неверная конфигурация."
+
+msgid "Paymos payment error: invalid invoice response."
+msgstr "Ошибка оплаты Paymos: некорректный ответ по счёту."
+
+msgid "Paymos invoice created: %s"
+msgstr "Счёт Paymos создан: %s"
+
+msgid "Active mode"
+msgstr "Активный режим"
+
+msgid "Configured"
+msgstr "Настроено"
+
+msgid "Missing"
+msgstr "Отсутствует"
+
+msgid "Active API key"
+msgstr "Активный API-ключ"
+
+msgid "Project ID"
+msgstr "ID проекта"
+
+msgid "Payment already complete — later status update from Paymos disregarded."
+msgstr "Платёж уже завершён — позднее обновление статуса от Paymos проигнорировано."
+
+msgid "Paymos payment is confirming."
+msgstr "Оплата Paymos подтверждается в сети."
+
+msgid "Paymos payment completed."
+msgstr "Оплата Paymos завершена."
+
+msgid "Underpaid — the on-chain amount was less than the invoice total."
+msgstr "Недоплата — сумма в сети меньше итога по счёту."
+
+msgid "Paymos invoice was cancelled or expired."
+msgstr "Счёт Paymos отменён или истёк."
+
+msgid "Payment confirmation"
+msgstr "Подтверждение оплаты"
+
+msgid "View transaction"
+msgstr "Посмотреть транзакцию"
+
+msgid "Settled on-chain."
+msgstr "Расчёт прошёл on-chain."
+
+msgid "Transaction:"
+msgstr "Транзакция:"
+
+msgid "Settings"
+msgstr "Настройки"
