@@ -122,6 +122,12 @@ final class Config
         self::$generated = null;
     }
 
+    /** @param array<string, mixed> $config */
+    public static function use_config_for_tests(array $config)
+    {
+        self::$generated = $config;
+    }
+
     private static function setting($key, $default = '')
     {
         if (function_exists('edd_get_option')) {
@@ -150,14 +156,18 @@ final class Config
             return self::$generated;
         }
 
-        $file = PAYMOS_EDD_PLUGIN_DIR . 'paymos-config.php';
-        if (!is_readable($file)) {
+        try {
+            $stored = CredentialStore::load();
+            if (count($stored) > 0) {
+                self::$generated = array('environments' => $stored);
+                return self::$generated;
+            }
+        } catch (\Throwable $exception) {
             self::$generated = array();
             return self::$generated;
         }
 
-        $config = require $file;
-        self::$generated = is_array($config) ? $config : array();
+        self::$generated = array();
         return self::$generated;
     }
 
