@@ -100,6 +100,8 @@ function plugin_basename($file) { return basename($file); }
 function plugins_url($path = '', $file = '') { return 'https://shop.example.com/wp-content/plugins/paymos-easy-digital-downloads/' . ltrim((string) $path, '/'); }
 function rest_url($path = '') { return 'https://shop.example.com/wp-json/' . ltrim((string) $path, '/'); }
 function get_option($key, $default = false) { return array_key_exists($key, $GLOBALS['paymos_edd_options']) ? $GLOBALS['paymos_edd_options'][$key] : $default; }
+function update_option($key, $value, $autoload = null) { $GLOBALS['paymos_edd_options'][(string) $key] = $value; return true; }
+function wp_salt($scheme = 'auth') { return 'paymos-edd-test-salt-' . (string) $scheme; }
 function update_post_meta($paymentId, $key, $value) { $GLOBALS['paymos_edd_payment_meta'][(int) $paymentId][(string) $key] = $value; return true; }
 function get_post_meta($paymentId, $key, $single = false) { return isset($GLOBALS['paymos_edd_payment_meta'][(int) $paymentId][(string) $key]) ? $GLOBALS['paymos_edd_payment_meta'][(int) $paymentId][(string) $key] : ''; }
 function edd_get_option($key, $default = '') { $settings = get_option('edd_settings', array()); return is_array($settings) && array_key_exists($key, $settings) ? $settings[$key] : $default; }
@@ -140,7 +142,7 @@ function get_transient($key) { return isset($GLOBALS['paymos_edd_transients'][(s
 function set_transient($key, $value, $expiration = 0) { $GLOBALS['paymos_edd_transients'][(string) $key] = $value; return true; }
 function delete_transient($key) { unset($GLOBALS['paymos_edd_transients'][(string) $key]); return true; }
 function add_option($key, $value = '', $deprecated = '', $autoload = 'yes') { if (array_key_exists((string) $key, $GLOBALS['paymos_edd_transients'])) { return false; } $GLOBALS['paymos_edd_transients'][(string) $key] = $value; return true; }
-function delete_option($key) { unset($GLOBALS['paymos_edd_transients'][(string) $key]); return true; }
+function delete_option($key) { unset($GLOBALS['paymos_edd_options'][(string) $key], $GLOBALS['paymos_edd_transients'][(string) $key]); return true; }
 
 function assertSameValue($expected, $actual, $message)
 {
@@ -173,7 +175,6 @@ function paymos_edd_reset_test_state()
     $GLOBALS['paymos_edd_redirects'] = array();
     $GLOBALS['paymos_edd_errors'] = array();
     $GLOBALS['paymos_edd_next_payment_id'] = 100;
-    paymos_edd_delete_generated_config();
     PaymosEasyDigitalDownloads\Config::reset_for_tests();
     PaymosEasyDigitalDownloads\Gateway::set_client_factory_for_tests(null);
     PaymosEasyDigitalDownloads\WebhookController::set_client_factory_for_tests(null);
@@ -181,16 +182,15 @@ function paymos_edd_reset_test_state()
 
 function paymos_edd_delete_generated_config()
 {
-    $config = PAYMOS_EDD_PLUGIN_DIR . 'paymos-config.php';
-    if (is_file($config)) {
-        unlink($config);
+    if (class_exists('PaymosEasyDigitalDownloads\\Config')) {
+        PaymosEasyDigitalDownloads\Config::use_config_for_tests(array());
     }
 }
 
 function paymos_edd_write_generated_config($php)
 {
-    file_put_contents(PAYMOS_EDD_PLUGIN_DIR . 'paymos-config.php', "<?php\n\nreturn " . $php . ";\n");
-    PaymosEasyDigitalDownloads\Config::reset_for_tests();
+    $config = eval('return ' . $php . ';');
+    PaymosEasyDigitalDownloads\Config::use_config_for_tests(is_array($config) ? $config : array());
 }
 
 function paymos_edd_purchase(array $overrides = array())
@@ -212,6 +212,7 @@ function paymos_edd_invoice_event($eventId, $eventType, $status, array $override
     return array_replace_recursive(array(
         'event_id' => $eventId,
         'event_type' => $eventType,
+        'version' => 1,
         'occurred_at' => 1781600000,
         'data' => array(
             'invoice_id' => 'inv_123',

@@ -79,8 +79,18 @@ final class Gateway
             'paymos_header' => array(
                 'id' => 'paymos_header',
                 'name' => '<strong>' . __('Paymos settings', 'paymos-easy-digital-downloads') . '</strong>',
-                'desc' => __('Sandbox and live credentials are bundled in your generated package. Only display preferences and the active mode are stored here.', 'paymos-easy-digital-downloads'),
+                'desc' => __('Connect this store to the project currently selected in Paymos. Existing merchant Payment keys are reused; store webhook secrets are created for this exact URL.', 'paymos-easy-digital-downloads'),
                 'type' => 'header',
+            ),
+            'paymos_connect' => array(
+                'id' => 'paymos_connect',
+                'name' => __('Connect Paymos', 'paymos-easy-digital-downloads'),
+                'desc' => '<button type="button" class="button button-primary" id="paymos-edd-connect-button">'
+                    . esc_html__('Connect Paymos', 'paymos-easy-digital-downloads')
+                    . '</button><p id="paymos-edd-connect-status" aria-live="polite">'
+                    . esc_html__('Opens Paymos in a new tab for approval.', 'paymos-easy-digital-downloads')
+                    . '</p>',
+                'type' => 'descriptive_text',
             ),
             'paymos_title' => array(
                 'id' => 'paymos_title',
@@ -103,7 +113,7 @@ final class Gateway
             'paymos_webhook_url' => array(
                 'id' => 'paymos_webhook_url',
                 'name' => __('Webhook URL', 'paymos-easy-digital-downloads'),
-                'desc' => '<code>' . esc_html(Config::webhook_url()) . '</code><br>' . esc_html__('Registered automatically with your Paymos project when you generate the plugin.', 'paymos-easy-digital-downloads'),
+                'desc' => '<code>' . esc_html(Config::webhook_url()) . '</code><br>' . esc_html__('Registered automatically when you connect this store.', 'paymos-easy-digital-downloads'),
                 'type' => 'descriptive_text',
             ),
             'paymos_config_status' => array(
