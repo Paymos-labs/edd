@@ -118,7 +118,7 @@ final class Gateway
             ),
             'paymos_config_status' => array(
                 'id' => 'paymos_config_status',
-                'name' => __('Generated config', 'paymos-easy-digital-downloads'),
+                'name' => __('Connection status', 'paymos-easy-digital-downloads'),
                 'desc' => wp_kses_post(self::config_status_html()),
                 'type' => 'descriptive_text',
             ),
@@ -261,7 +261,7 @@ final class Gateway
         $config = Config::environment_config($environment);
         foreach (array('api_key', 'api_secret', 'project_id', 'base_url') as $required) {
             if (!isset($config[$required]) || !is_scalar($config[$required]) || trim((string) $config[$required]) === '') {
-                throw new \RuntimeException('Paymos generated config is missing ' . $required . ' for ' . (string) $environment . '.');
+                throw new \RuntimeException('Paymos connected credentials are missing ' . $required . ' for ' . (string) $environment . '.');
             }
         }
 

@@ -151,7 +151,7 @@ final class WebhookController
         $config = Config::environment_config($environment);
         foreach (array('api_key', 'api_secret', 'base_url') as $required) {
             if (!isset($config[$required]) || !is_scalar($config[$required]) || trim((string) $config[$required]) === '') {
-                throw new \RuntimeException('Paymos generated config is missing ' . $required . ' for ' . (string) $environment . '.');
+                throw new \RuntimeException('Paymos connected credentials are missing ' . $required . ' for ' . (string) $environment . '.');
             }
         }
 

@@ -2,116 +2,190 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Paymos for Easy Digital Downloads 1.0.0\n"
 "Report-Msgid-Bugs-To: support@paymos.io\n"
-"PO-Revision-Date: 2026-06-22 13:00+0000\n"
 "Last-Translator: Paymos <support@paymos.io>\n"
 "Language-Team: Paymos <support@paymos.io>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: 2026-07-12T10:32:27+00:00\n"
+"PO-Revision-Date: 2026-06-22 13:00+0000\n"
 "Language: ru_RU\n"
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<12 || n%100>14) ? 1 : 2);\n"
 
+#. Author of the plugin
+#: paymos-easy-digital-downloads.php
+#: includes/Gateway.php:31
+#: includes/Gateway.php:64
 msgid "Paymos"
 msgstr "Paymos"
 
+#: includes/Gateway.php:32
+#: includes/Gateway.php:100
 msgid "Pay with stablecoins"
 msgstr "Оплата стейблкоинами"
 
+#: includes/Gateway.php:81
 msgid "Paymos settings"
 msgstr "Настройки Paymos"
 
-msgid "Sandbox and live credentials are bundled in your generated package. Only display preferences and the active mode are stored here."
-msgstr "Креды Sandbox и Live вшиты в сгенерированный пакет. Здесь хранятся только параметры отображения и активный режим."
-
+#: includes/Gateway.php:97
 msgid "Checkout label"
 msgstr "Подпись на оформлении"
 
+#: includes/Gateway.php:98
 msgid "Shown to customers on EDD checkout."
 msgstr "Показывается покупателям на оформлении EDD."
 
+#: includes/Gateway.php:104
 msgid "Mode"
 msgstr "Режим"
 
+#: includes/Gateway.php:105
 msgid "Switch to Live after you finish sandbox testing."
 msgstr "Переключите на Live после тестов в песочнице."
 
+#: includes/Gateway.php:108
+#: includes/Gateway.php:319
 msgid "Sandbox"
 msgstr "Sandbox"
 
+#: includes/Gateway.php:109
+#: includes/Gateway.php:320
 msgid "Live"
 msgstr "Live"
 
+#: includes/Gateway.php:115
 msgid "Webhook URL"
 msgstr "URL вебхука"
 
-msgid "Registered automatically with your Paymos project when you generate the plugin."
-msgstr "Регистрируется автоматически в вашем проекте Paymos при генерации плагина."
-
-msgid "Generated config"
-msgstr "Сгенерированная конфигурация"
-
+#: includes/Gateway.php:127
 msgid "Debug logging"
 msgstr "Журнал отладки"
 
+#: includes/Gateway.php:128
 msgid "Write redacted Paymos logs to PHP error_log."
 msgstr "Писать обезличенные логи Paymos в PHP error_log."
 
+#: includes/Gateway.php:163
 msgid "Paymos payment error: payment could not be recorded."
 msgstr "Ошибка оплаты Paymos: не удалось записать платёж."
 
+#: includes/Gateway.php:188
 msgid "Paymos payment error: unable to create invoice."
 msgstr "Ошибка оплаты Paymos: не удалось создать счёт."
 
+#: includes/Gateway.php:194
+#: includes/Gateway.php:203
 msgid "Paymos payment error: configuration is invalid."
 msgstr "Ошибка оплаты Paymos: неверная конфигурация."
 
+#: includes/Gateway.php:212
 msgid "Paymos payment error: invalid invoice response."
 msgstr "Ошибка оплаты Paymos: некорректный ответ по счёту."
 
+#: includes/Gateway.php:224
+#, php-format
 msgid "Paymos invoice created: %s"
 msgstr "Счёт Paymos создан: %s"
 
+#: includes/Gateway.php:318
 msgid "Active mode"
 msgstr "Активный режим"
 
+#: includes/Gateway.php:319
+#: includes/Gateway.php:320
 msgid "Configured"
 msgstr "Настроено"
 
+#: includes/Gateway.php:319
+#: includes/Gateway.php:320
+#: includes/Gateway.php:327
 msgid "Missing"
 msgstr "Отсутствует"
 
+#: includes/Gateway.php:321
 msgid "Active API key"
 msgstr "Активный API-ключ"
 
+#: includes/Gateway.php:322
 msgid "Project ID"
 msgstr "ID проекта"
 
+#: includes/PaymentMapper.php:27
 msgid "Payment already complete — later status update from Paymos disregarded."
 msgstr "Платёж уже завершён — позднее обновление статуса от Paymos проигнорировано."
 
+#: includes/PaymentMapper.php:35
 msgid "Paymos payment is confirming."
 msgstr "Оплата Paymos подтверждается в сети."
 
+#: includes/PaymentMapper.php:63
 msgid "Paymos payment completed."
 msgstr "Оплата Paymos завершена."
 
+#: includes/PaymentMapper.php:68
 msgid "Underpaid — the on-chain amount was less than the invoice total."
 msgstr "Недоплата — сумма в сети меньше итога по счёту."
 
+#: includes/PaymentMapper.php:75
 msgid "Paymos invoice was cancelled or expired."
 msgstr "Счёт Paymos отменён или истёк."
 
+#: includes/StorefrontHooks.php:45
+#: includes/StorefrontHooks.php:76
 msgid "Payment confirmation"
 msgstr "Подтверждение оплаты"
 
+#: includes/StorefrontHooks.php:48
+#: includes/StorefrontHooks.php:80
 msgid "View transaction"
 msgstr "Посмотреть транзакцию"
 
+#: includes/StorefrontHooks.php:78
 msgid "Settled on-chain."
 msgstr "Расчёт прошёл on-chain."
 
+#: includes/StorefrontHooks.php:82
 msgid "Transaction:"
 msgstr "Транзакция:"
 
+#: includes/StorefrontHooks.php:96
 msgid "Settings"
 msgstr "Настройки"
+
+#. Plugin Name of the plugin
+#: paymos-easy-digital-downloads.php
+msgid "Paymos for Easy Digital Downloads"
+msgstr "Paymos для Easy Digital Downloads"
+
+#. Plugin URI of the plugin
+#. Author URI of the plugin
+#: paymos-easy-digital-downloads.php
+msgid "https://paymos.io"
+msgstr "https://paymos.io"
+
+#. Description of the plugin
+#: paymos-easy-digital-downloads.php
+msgid "Accept stablecoin payments in Easy Digital Downloads through Paymos."
+msgstr "Принимайте оплату стейблкоинами в Easy Digital Downloads через Paymos."
+
+#: includes/Gateway.php:82
+msgid "Connect this store to the project currently selected in Paymos. Existing merchant Payment keys are reused; store webhook secrets are created for this exact URL."
+msgstr "Подключите магазин к проекту, который сейчас открыт в Paymos. Существующие платёжные ключи мерчанта используются повторно, а секреты вебхуков магазина создаются для этого точного URL."
+
+#: includes/Gateway.php:87
+#: includes/Gateway.php:89
+msgid "Connect Paymos"
+msgstr "Подключить Paymos"
+
+#: includes/Gateway.php:91
+msgid "Opens Paymos in a new tab for approval."
+msgstr "Открывает Paymos в новой вкладке для подтверждения."
+
+#: includes/Gateway.php:116
+msgid "Registered automatically when you connect this store."
+msgstr "Регистрируется автоматически при подключении магазина."
+
+#: includes/Gateway.php:121
+msgid "Connection status"
+msgstr "Статус подключения"
