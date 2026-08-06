@@ -1,0 +1,191 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Paymos for Easy Digital Downloads 1.0.0\n"
+"Report-Msgid-Bugs-To: support@paymos.io\n"
+"Last-Translator: Paymos <support@paymos.io>\n"
+"Language-Team: Paymos <support@paymos.io>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: 2026-07-12T10:33:00+00:00\n"
+"PO-Revision-Date: 2026-06-22 13:00+0000\n"
+"Language: tr_TR\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#. Plugin Name of the plugin
+#: paymos-easy-digital-downloads.php
+msgid "Paymos for Easy Digital Downloads"
+msgstr "Paymos for Easy Digital Downloads"
+
+#. Plugin URI of the plugin
+#. Author URI of the plugin
+#: paymos-easy-digital-downloads.php
+msgid "https://paymos.io"
+msgstr "https://paymos.io"
+
+#. Description of the plugin
+#: paymos-easy-digital-downloads.php
+msgid "Accept stablecoin payments in Easy Digital Downloads through Paymos."
+msgstr "Easy Digital Downloads'ta Paymos ile stablecoin ödemesi kabul edin."
+
+#. Author of the plugin
+#: paymos-easy-digital-downloads.php
+#: includes/Gateway.php:31
+#: includes/Gateway.php:64
+msgid "Paymos"
+msgstr "Paymos"
+
+#: includes/Gateway.php:32
+#: includes/Gateway.php:100
+msgid "Pay with stablecoins"
+msgstr "Stablecoin ile ödeyin"
+
+#: includes/Gateway.php:81
+msgid "Paymos settings"
+msgstr "Paymos ayarları"
+
+#: includes/Gateway.php:82
+msgid "Connect this store to the project currently selected in Paymos. Existing merchant Payment keys are reused; store webhook secrets are created for this exact URL."
+msgstr "Bu mağazayı Paymos'ta seçili projeye bağlayın. Mevcut işyeri ödeme anahtarları yeniden kullanılır; mağaza webhook gizli anahtarları tam olarak bu URL için oluşturulur."
+
+#: includes/Gateway.php:87
+#: includes/Gateway.php:89
+msgid "Connect Paymos"
+msgstr "Paymos'u bağla"
+
+#: includes/Gateway.php:91
+msgid "Opens Paymos in a new tab for approval."
+msgstr "Onay için Paymos'u yeni sekmede açar."
+
+#: includes/Gateway.php:97
+msgid "Checkout label"
+msgstr "Ödeme sayfası etiketi"
+
+#: includes/Gateway.php:98
+msgid "Shown to customers on EDD checkout."
+msgstr "EDD ödeme adımında müşterilere gösterilir."
+
+#: includes/Gateway.php:104
+msgid "Mode"
+msgstr "Mod"
+
+#: includes/Gateway.php:105
+msgid "Switch to Live after you finish sandbox testing."
+msgstr "Sandbox testlerini bitirdikten sonra Live'a geçin."
+
+#: includes/Gateway.php:108
+#: includes/Gateway.php:319
+msgid "Sandbox"
+msgstr "Sandbox"
+
+#: includes/Gateway.php:109
+#: includes/Gateway.php:320
+msgid "Live"
+msgstr "Live"
+
+#: includes/Gateway.php:115
+msgid "Webhook URL"
+msgstr "Webhook URL'si"
+
+#: includes/Gateway.php:116
+msgid "Registered automatically when you connect this store."
+msgstr "Mağazayı bağladığınızda otomatik kaydedilir."
+
+#: includes/Gateway.php:121
+msgid "Connection status"
+msgstr "Bağlantı durumu"
+
+#: includes/Gateway.php:127
+msgid "Debug logging"
+msgstr "Hata ayıklama günlüğü"
+
+#: includes/Gateway.php:128
+msgid "Write redacted Paymos logs to PHP error_log."
+msgstr "Kırpılmış Paymos günlüklerini PHP error_log dosyasına yazın."
+
+#: includes/Gateway.php:163
+msgid "Paymos payment error: payment could not be recorded."
+msgstr "Paymos ödeme hatası: ödeme kaydedilemedi."
+
+#: includes/Gateway.php:188
+msgid "Paymos payment error: unable to create invoice."
+msgstr "Paymos ödeme hatası: fatura oluşturulamadı."
+
+#: includes/Gateway.php:194
+#: includes/Gateway.php:203
+msgid "Paymos payment error: configuration is invalid."
+msgstr "Paymos ödeme hatası: yapılandırma geçersiz."
+
+#: includes/Gateway.php:212
+msgid "Paymos payment error: invalid invoice response."
+msgstr "Paymos ödeme hatası: geçersiz fatura yanıtı."
+
+#: includes/Gateway.php:224
+#, php-format
+msgid "Paymos invoice created: %s"
+msgstr "Paymos faturası oluşturuldu: %s"
+
+#: includes/Gateway.php:318
+msgid "Active mode"
+msgstr "Aktif mod"
+
+#: includes/Gateway.php:319
+#: includes/Gateway.php:320
+msgid "Configured"
+msgstr "Yapılandırıldı"
+
+#: includes/Gateway.php:319
+#: includes/Gateway.php:320
+#: includes/Gateway.php:327
+msgid "Missing"
+msgstr "Eksik"
+
+#: includes/Gateway.php:321
+msgid "Active API key"
+msgstr "Aktif API anahtarı"
+
+#: includes/Gateway.php:322
+msgid "Project ID"
+msgstr "Proje ID'si"
+
+#: includes/PaymentMapper.php:27
+msgid "Payment already complete — later status update from Paymos disregarded."
+msgstr "Ödeme zaten tamamlandı — Paymos'tan gelen sonraki durum güncellemesi yok sayıldı."
+
+#: includes/PaymentMapper.php:35
+msgid "Paymos payment is confirming."
+msgstr "Paymos ödemesi on-chain onaylanıyor."
+
+#: includes/PaymentMapper.php:63
+msgid "Paymos payment completed."
+msgstr "Paymos ödemesi tamamlandı."
+
+#: includes/PaymentMapper.php:68
+msgid "Underpaid — the on-chain amount was less than the invoice total."
+msgstr "Eksik ödeme — on-chain tutar fatura toplamından az."
+
+#: includes/PaymentMapper.php:75
+msgid "Paymos invoice was cancelled or expired."
+msgstr "Paymos faturası iptal edildi veya süresi doldu."
+
+#: includes/StorefrontHooks.php:45
+#: includes/StorefrontHooks.php:76
+msgid "Payment confirmation"
+msgstr "Ödeme onayı"
+
+#: includes/StorefrontHooks.php:48
+#: includes/StorefrontHooks.php:80
+msgid "View transaction"
+msgstr "İşlemi görüntüle"
+
+#: includes/StorefrontHooks.php:78
+msgid "Settled on-chain."
+msgstr "On-chain tahsil edildi."
+
+#: includes/StorefrontHooks.php:82
+msgid "Transaction:"
+msgstr "İşlem:"
+
+#: includes/StorefrontHooks.php:96
+msgid "Settings"
+msgstr "Ayarlar"

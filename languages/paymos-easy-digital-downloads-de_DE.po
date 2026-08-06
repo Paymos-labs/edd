@@ -1,0 +1,131 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Paymos for Easy Digital Downloads 1.0.0\n"
+"Report-Msgid-Bugs-To: support@paymos.io\n"
+"Last-Translator: Paymos <support@paymos.io>\n"
+"Language-Team: Paymos <support@paymos.io>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: de_DE\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Paymos for Easy Digital Downloads"
+msgstr "Paymos für Easy Digital Downloads"
+
+msgid "https://paymos.io"
+msgstr "https://paymos.io"
+
+msgid "Accept stablecoin payments in Easy Digital Downloads through Paymos."
+msgstr "Stablecoin-Zahlungen in Easy Digital Downloads über Paymos annehmen."
+
+msgid "Paymos"
+msgstr "Paymos"
+
+msgid "Pay with stablecoins"
+msgstr "Mit Stablecoins bezahlen"
+
+msgid "Paymos settings"
+msgstr "Paymos-Einstellungen"
+
+msgid "Connect this store to the project currently selected in Paymos. Existing merchant Payment keys are reused; store webhook secrets are created for this exact URL."
+msgstr "Verbinden Sie diesen Shop mit dem Projekt, das gerade in Paymos ausgewählt ist. Vorhandene Payment-Schlüssel des Händlers werden weiterverwendet; das Webhook-Geheimnis entsteht für genau diese URL."
+
+msgid "Connect Paymos"
+msgstr "Connect Paymos"
+
+msgid "Opens Paymos in a new tab for approval."
+msgstr "Öffnet Paymos zur Bestätigung in einem neuen Tab."
+
+msgid "Checkout label"
+msgstr "Bezeichnung im Checkout"
+
+msgid "Shown to customers on EDD checkout."
+msgstr "Wird der Kundschaft im EDD-Checkout angezeigt."
+
+msgid "Mode"
+msgstr "Modus"
+
+msgid "Switch to Live after you finish sandbox testing."
+msgstr "Stellen Sie auf Live um, sobald die Sandbox-Tests abgeschlossen sind."
+
+msgid "Sandbox"
+msgstr "Sandbox"
+
+msgid "Live"
+msgstr "Live"
+
+msgid "Webhook URL"
+msgstr "Webhook-URL"
+
+msgid "Registered automatically when you connect this store."
+msgstr "Wird automatisch eingetragen, sobald Sie diesen Shop verbinden."
+
+msgid "Connection status"
+msgstr "Verbindungsstatus"
+
+msgid "Debug logging"
+msgstr "Diagnoseprotokoll"
+
+msgid "Write redacted Paymos logs to PHP error_log."
+msgstr "Schreibt bereinigte Paymos-Protokolle in das PHP-error_log."
+
+msgid "Paymos payment error: payment could not be recorded."
+msgstr "Paymos-Zahlungsfehler: Die Zahlung konnte nicht erfasst werden."
+
+msgid "Paymos payment error: unable to create invoice."
+msgstr "Paymos-Zahlungsfehler: Die Rechnung konnte nicht angelegt werden."
+
+msgid "Paymos payment error: configuration is invalid."
+msgstr "Paymos-Zahlungsfehler: Die Konfiguration ist ungültig."
+
+msgid "Paymos payment error: invalid invoice response."
+msgstr "Paymos-Zahlungsfehler: Ungültige Antwort auf die Rechnungsanfrage."
+
+msgid "Paymos invoice created: %s"
+msgstr "Paymos-Rechnung angelegt: %s"
+
+msgid "Active mode"
+msgstr "Aktiver Modus"
+
+msgid "Configured"
+msgstr "Eingerichtet"
+
+msgid "Missing"
+msgstr "Fehlt"
+
+msgid "Active API key"
+msgstr "Aktiver API-Schlüssel"
+
+msgid "Project ID"
+msgstr "Projekt-ID"
+
+msgid "Payment already complete — later status update from Paymos disregarded."
+msgstr "Die Zahlung war bereits abgeschlossen — eine spätere Statusmeldung von Paymos wurde verworfen."
+
+msgid "Paymos payment is confirming."
+msgstr "Die Paymos-Zahlung wird bestätigt."
+
+msgid "Paymos payment completed."
+msgstr "Die Paymos-Zahlung ist abgeschlossen."
+
+msgid "Underpaid — the on-chain amount was less than the invoice total."
+msgstr "Unterbezahlt — der Betrag on-chain lag unter der Rechnungssumme."
+
+msgid "Paymos invoice was cancelled or expired."
+msgstr "Die Paymos-Rechnung wurde storniert oder ist abgelaufen."
+
+msgid "Payment confirmation"
+msgstr "Zahlungsbestätigung"
+
+msgid "View transaction"
+msgstr "Transaktion ansehen"
+
+msgid "Settled on-chain."
+msgstr "On-chain abgewickelt."
+
+msgid "Transaction:"
+msgstr "Transaktion:"
+
+msgid "Settings"
+msgstr "Einstellungen"

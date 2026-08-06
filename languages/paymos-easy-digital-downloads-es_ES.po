@@ -1,0 +1,131 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Paymos for Easy Digital Downloads 1.0.0\n"
+"Report-Msgid-Bugs-To: support@paymos.io\n"
+"Last-Translator: Paymos <support@paymos.io>\n"
+"Language-Team: Paymos <support@paymos.io>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: es_ES\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Paymos for Easy Digital Downloads"
+msgstr "Paymos para Easy Digital Downloads"
+
+msgid "https://paymos.io"
+msgstr "https://paymos.io"
+
+msgid "Accept stablecoin payments in Easy Digital Downloads through Paymos."
+msgstr "Acepta pagos en stablecoins en Easy Digital Downloads a través de Paymos."
+
+msgid "Paymos"
+msgstr "Paymos"
+
+msgid "Pay with stablecoins"
+msgstr "Pagar con stablecoins"
+
+msgid "Paymos settings"
+msgstr "Configuración de Paymos"
+
+msgid "Connect this store to the project currently selected in Paymos. Existing merchant Payment keys are reused; store webhook secrets are created for this exact URL."
+msgstr "Conecta esta tienda con el proyecto que tengas seleccionado en Paymos. Se reutilizan las claves de pago que ya tenga el comercio; el secreto del webhook se crea para esta URL exacta."
+
+msgid "Connect Paymos"
+msgstr "Connect Paymos"
+
+msgid "Opens Paymos in a new tab for approval."
+msgstr "Abre Paymos en una pestaña nueva para que lo apruebes."
+
+msgid "Checkout label"
+msgstr "Etiqueta en el pago"
+
+msgid "Shown to customers on EDD checkout."
+msgstr "Es lo que ven los clientes en el pago de EDD."
+
+msgid "Mode"
+msgstr "Modo"
+
+msgid "Switch to Live after you finish sandbox testing."
+msgstr "Cambia a Live cuando termines las pruebas en Sandbox."
+
+msgid "Sandbox"
+msgstr "Sandbox"
+
+msgid "Live"
+msgstr "Live"
+
+msgid "Webhook URL"
+msgstr "URL del webhook"
+
+msgid "Registered automatically when you connect this store."
+msgstr "Se registra automáticamente al conectar esta tienda."
+
+msgid "Connection status"
+msgstr "Estado de la conexión"
+
+msgid "Debug logging"
+msgstr "Registro de diagnóstico"
+
+msgid "Write redacted Paymos logs to PHP error_log."
+msgstr "Escribe registros de Paymos depurados en el error_log de PHP."
+
+msgid "Paymos payment error: payment could not be recorded."
+msgstr "Error de pago de Paymos: no se pudo registrar el pago."
+
+msgid "Paymos payment error: unable to create invoice."
+msgstr "Error de pago de Paymos: no se pudo crear la factura."
+
+msgid "Paymos payment error: configuration is invalid."
+msgstr "Error de pago de Paymos: la configuración no es válida."
+
+msgid "Paymos payment error: invalid invoice response."
+msgstr "Error de pago de Paymos: respuesta de factura no válida."
+
+msgid "Paymos invoice created: %s"
+msgstr "Factura de Paymos creada: %s"
+
+msgid "Active mode"
+msgstr "Modo activo"
+
+msgid "Configured"
+msgstr "Configurado"
+
+msgid "Missing"
+msgstr "Falta"
+
+msgid "Active API key"
+msgstr "Clave de API activa"
+
+msgid "Project ID"
+msgstr "ID del proyecto"
+
+msgid "Payment already complete — later status update from Paymos disregarded."
+msgstr "El pago ya estaba completo: se descartó una actualización de estado posterior de Paymos."
+
+msgid "Paymos payment is confirming."
+msgstr "El pago con Paymos se está confirmando."
+
+msgid "Paymos payment completed."
+msgstr "Pago con Paymos completado."
+
+msgid "Underpaid — the on-chain amount was less than the invoice total."
+msgstr "Pago insuficiente: el importe en la cadena fue menor que el total de la factura."
+
+msgid "Paymos invoice was cancelled or expired."
+msgstr "La factura de Paymos se canceló o venció."
+
+msgid "Payment confirmation"
+msgstr "Confirmación del pago"
+
+msgid "View transaction"
+msgstr "Ver la transacción"
+
+msgid "Settled on-chain."
+msgstr "Liquidado en la cadena."
+
+msgid "Transaction:"
+msgstr "Transacción:"
+
+msgid "Settings"
+msgstr "Configuración"
