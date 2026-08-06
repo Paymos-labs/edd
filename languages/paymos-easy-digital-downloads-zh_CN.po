@@ -1,0 +1,195 @@
+# Copyright (C) 2026 Paymos
+# This file is distributed under the GPL-2.0-or-later.
+msgid ""
+msgstr ""
+"Project-Id-Version: Paymos for Easy Digital Downloads 1.0.0\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/html\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: Chinese (Simplified) <LL@li.org>\n"
+"Language: zh_CN\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: 2026-07-12T10:33:00+00:00\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: WP-CLI 2.12.0\n"
+"X-Domain: paymos-easy-digital-downloads\n"
+
+#. Plugin Name of the plugin
+#: paymos-easy-digital-downloads.php
+msgid "Paymos for Easy Digital Downloads"
+msgstr "Paymos for Easy Digital Downloads"
+
+#. Plugin URI of the plugin
+#. Author URI of the plugin
+#: paymos-easy-digital-downloads.php
+msgid "https://paymos.io"
+msgstr "https://paymos.io"
+
+#. Description of the plugin
+#: paymos-easy-digital-downloads.php
+msgid "Accept stablecoin payments in Easy Digital Downloads through Paymos."
+msgstr "通过 Paymos 在 Easy Digital Downloads 中接收稳定币付款。"
+
+#. Author of the plugin
+#: paymos-easy-digital-downloads.php
+#: includes/Gateway.php:31
+#: includes/Gateway.php:64
+msgid "Paymos"
+msgstr "Paymos"
+
+#: includes/Gateway.php:32
+#: includes/Gateway.php:100
+msgid "Pay with stablecoins"
+msgstr "用稳定币付款"
+
+#: includes/Gateway.php:81
+msgid "Paymos settings"
+msgstr "Paymos 设置"
+
+#: includes/Gateway.php:82
+msgid "Connect this store to the project currently selected in Paymos. Existing merchant Payment keys are reused; store webhook secrets are created for this exact URL."
+msgstr "将本商店连接到 Paymos 中当前选中的项目。已有商户 Payment 密钥会被复用；商店 webhook 密钥会按当前 URL 单独创建。"
+
+#: includes/Gateway.php:87
+#: includes/Gateway.php:89
+msgid "Connect Paymos"
+msgstr "连接 Paymos"
+
+#: includes/Gateway.php:91
+msgid "Opens Paymos in a new tab for approval."
+msgstr "在新标签页中打开 Paymos 以完成授权。"
+
+#: includes/Gateway.php:97
+msgid "Checkout label"
+msgstr "收银台显示名称"
+
+#: includes/Gateway.php:98
+msgid "Shown to customers on EDD checkout."
+msgstr "在 EDD 收银台向买家显示。"
+
+#: includes/Gateway.php:104
+msgid "Mode"
+msgstr "模式"
+
+#: includes/Gateway.php:105
+msgid "Switch to Live after you finish sandbox testing."
+msgstr "完成沙盒测试后切换到正式模式。"
+
+#: includes/Gateway.php:108
+#: includes/Gateway.php:319
+msgid "Sandbox"
+msgstr "沙盒"
+
+#: includes/Gateway.php:109
+#: includes/Gateway.php:320
+msgid "Live"
+msgstr "正式"
+
+#: includes/Gateway.php:115
+msgid "Webhook URL"
+msgstr "Webhook URL"
+
+#: includes/Gateway.php:116
+msgid "Registered automatically when you connect this store."
+msgstr "连接本商店时自动注册。"
+
+#: includes/Gateway.php:121
+msgid "Connection status"
+msgstr "连接状态"
+
+#: includes/Gateway.php:127
+msgid "Debug logging"
+msgstr "调试日志"
+
+#: includes/Gateway.php:128
+msgid "Write redacted Paymos logs to PHP error_log."
+msgstr "将脱敏后的 Paymos 日志写入 PHP error_log。"
+
+#: includes/Gateway.php:163
+msgid "Paymos payment error: payment could not be recorded."
+msgstr "Paymos 付款错误：无法记录付款。"
+
+#: includes/Gateway.php:188
+msgid "Paymos payment error: unable to create invoice."
+msgstr "Paymos 付款错误：无法创建账单。"
+
+#: includes/Gateway.php:194
+#: includes/Gateway.php:203
+msgid "Paymos payment error: configuration is invalid."
+msgstr "Paymos 付款错误：配置无效。"
+
+#: includes/Gateway.php:212
+msgid "Paymos payment error: invalid invoice response."
+msgstr "Paymos 付款错误：账单响应无效。"
+
+#: includes/Gateway.php:224
+#, php-format
+msgid "Paymos invoice created: %s"
+msgstr "Paymos 账单已创建：%s"
+
+#: includes/Gateway.php:318
+msgid "Active mode"
+msgstr "当前模式"
+
+#: includes/Gateway.php:319
+#: includes/Gateway.php:320
+msgid "Configured"
+msgstr "已配置"
+
+#: includes/Gateway.php:319
+#: includes/Gateway.php:320
+#: includes/Gateway.php:327
+msgid "Missing"
+msgstr "缺失"
+
+#: includes/Gateway.php:321
+msgid "Active API key"
+msgstr "当前 API 密钥"
+
+#: includes/Gateway.php:322
+msgid "Project ID"
+msgstr "项目 ID"
+
+#: includes/PaymentMapper.php:27
+msgid "Payment already complete — later status update from Paymos disregarded."
+msgstr "付款已完成，忽略 Paymos 后续发来的状态更新。"
+
+#: includes/PaymentMapper.php:35
+msgid "Paymos payment is confirming."
+msgstr "Paymos 付款正在确认中。"
+
+#: includes/PaymentMapper.php:63
+msgid "Paymos payment completed."
+msgstr "Paymos 付款已完成。"
+
+#: includes/PaymentMapper.php:68
+msgid "Underpaid — the on-chain amount was less than the invoice total."
+msgstr "付款不足——链上到账金额低于账单总额。"
+
+#: includes/PaymentMapper.php:75
+msgid "Paymos invoice was cancelled or expired."
+msgstr "Paymos 账单已取消或已过期。"
+
+#: includes/StorefrontHooks.php:45
+#: includes/StorefrontHooks.php:76
+msgid "Payment confirmation"
+msgstr "付款确认"
+
+#: includes/StorefrontHooks.php:48
+#: includes/StorefrontHooks.php:80
+msgid "View transaction"
+msgstr "查看交易"
+
+#: includes/StorefrontHooks.php:78
+msgid "Settled on-chain."
+msgstr "已链上结算。"
+
+#: includes/StorefrontHooks.php:82
+msgid "Transaction:"
+msgstr "交易："
+
+#: includes/StorefrontHooks.php:96
+msgid "Settings"
+msgstr "设置"
