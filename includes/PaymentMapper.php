@@ -30,9 +30,16 @@ final class PaymentMapper
 
         switch ($action) {
             case StatusMapper::ACTION_CONFIRMING:
-            case StatusMapper::ACTION_AWAITING_PAYMENT:
                 PaymentRepository::updateStatus($paymentId, 'pending');
                 PaymentRepository::insertNote($paymentId, __('Paymos payment is confirming.', 'paymos-easy-digital-downloads'));
+                break;
+
+            // Pending for the same reason as confirming, but for a different cause, so
+            // it must not borrow that wording: a short payment needs the customer to
+            // send the rest, while "confirming" tells the merchant to simply wait.
+            case StatusMapper::ACTION_AWAITING_PAYMENT:
+                PaymentRepository::updateStatus($paymentId, 'pending');
+                PaymentRepository::insertNote($paymentId, $this->awaitingPaymentNote($event));
                 break;
 
             case StatusMapper::ACTION_PAYMENT_COMPLETE:
@@ -194,6 +201,39 @@ final class PaymentMapper
         if ($ts !== null) {
             PaymentRepository::updateMeta($paymentId, '_paymos_last_event_at', gmdate('c', $ts));
         }
+    }
+
+    /**
+     * ACTION_AWAITING_PAYMENT covers two very different situations: the customer paid
+     * less than the invoice, or a payment that had been counted vanished in a chain
+     * reorg. Only the first is the customer's to fix, so the note names the shortfall
+     * whenever the server reported one.
+     *
+     * @param array<string, mixed> $event
+     * @return string
+     */
+    private function awaitingPaymentNote(array $event)
+    {
+        $payment = isset($event['data']['payment']) && is_array($event['data']['payment'])
+            ? $event['data']['payment']
+            : array();
+        $remaining = isset($payment['remaining']) && is_scalar($payment['remaining'])
+            ? trim((string) $payment['remaining'])
+            : '';
+        $currency = isset($payment['currency']) && is_scalar($payment['currency'])
+            ? trim((string) $payment['currency'])
+            : '';
+
+        if ($remaining === '' || !is_numeric($remaining) || (float) $remaining <= 0) {
+            return __('Paymos is waiting for the payment again — a confirmed transfer was rolled back on-chain.', 'paymos-easy-digital-downloads');
+        }
+
+        return sprintf(
+            /* translators: 1: outstanding amount, 2: token symbol such as USDT */
+            __('Paymos received only part of the payment. %1$s %2$s is still outstanding — the payment stays pending until the customer sends the rest.', 'paymos-easy-digital-downloads'),
+            $remaining,
+            $currency !== '' ? $currency : __('in the invoice currency', 'paymos-easy-digital-downloads')
+        );
     }
 
     private function wouldRollBackCompletePayment($action)

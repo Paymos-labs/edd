@@ -6,6 +6,7 @@ require __DIR__ . '/bootstrap.php';
 require __DIR__ . '/ConfigTest.php';
 require __DIR__ . '/CredentialStoreTest.php';
 require __DIR__ . '/GatewayTest.php';
+require __DIR__ . '/PaymentMapperTest.php';
 require __DIR__ . '/WebhookControllerTest.php';
 
 $tests = array_filter(get_defined_functions()['user'], static function ($name) {
