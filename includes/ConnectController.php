@@ -46,7 +46,7 @@ final class ConnectController
     {
         self::authorize();
         try {
-            $state = self::client()->start('easy-digital-downloads', self::sourceUrl());
+            $state = self::client()->start('easy-digital-downloads', self::sourceUrl(), self::settingsUrl());
             ConnectStateStore::save($state);
             wp_send_json_success(array(
                 'verification_url' => $state['verification_url'],
@@ -107,5 +107,15 @@ final class ConnectController
     private static function sourceUrl()
     {
         return rtrim((string) home_url('/'), '/');
+    }
+
+    /**
+     * Where approval should drop the merchant back. Paymos only honours it when it shares
+     * an origin with the store URL above, so a site whose admin lives on another host simply
+     * gets the Paymos confirmation screen instead of a redirect.
+     */
+    private static function settingsUrl()
+    {
+        return (string) admin_url('admin.php?page=edd-settings&tab=gateways&section=paymos');
     }
 }
