@@ -19,7 +19,7 @@ msgstr ""
 #. Plugin Name of the plugin
 #: paymos-easy-digital-downloads.php
 msgid "Paymos for Easy Digital Downloads"
-msgstr "Paymos for Easy Digital Downloads"
+msgstr "适用于 Easy Digital Downloads 的 Paymos"
 
 #. Plugin URI of the plugin
 #. Author URI of the plugin
@@ -89,7 +89,7 @@ msgstr "正式"
 
 #: includes/Gateway.php:115
 msgid "Webhook URL"
-msgstr "Webhook URL"
+msgstr "Webhook 地址"
 
 #: includes/Gateway.php:116
 msgid "Registered automatically when you connect this store."
@@ -193,3 +193,7 @@ msgstr "交易："
 #: includes/StorefrontHooks.php:96
 msgid "Settings"
 msgstr "设置"
+
+#: includes/PaymentMapper.php:235
+msgid "in the invoice currency"
+msgstr "以账单货币计"

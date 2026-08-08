@@ -32,7 +32,7 @@ msgid "Connect this store to the project currently selected in Paymos. Existing 
 msgstr "Conecta esta tienda con el proyecto que tengas seleccionado en Paymos. Se reutilizan las claves de pago que ya tenga el comercio; el secreto del webhook se crea para esta URL exacta."
 
 msgid "Connect Paymos"
-msgstr "Connect Paymos"
+msgstr "Conectar Paymos"
 
 msgid "Opens Paymos in a new tab for approval."
 msgstr "Abre Paymos en una pestaña nueva para que lo apruebes."
@@ -129,3 +129,7 @@ msgstr "Transacción:"
 
 msgid "Settings"
 msgstr "Configuración"
+
+#: includes/PaymentMapper.php:235
+msgid "in the invoice currency"
+msgstr "en la moneda de la factura"
