@@ -189,3 +189,7 @@ msgstr "Регистрируется автоматически при подк�
 #: includes/Gateway.php:121
 msgid "Connection status"
 msgstr "Статус подключения"
+
+#: includes/PaymentMapper.php:235
+msgid "in the invoice currency"
+msgstr "в валюте счёта"
