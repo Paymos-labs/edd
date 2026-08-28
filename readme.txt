@@ -4,7 +4,7 @@ Tags: payments, stablecoin, usdt, usdc, easy digital downloads
 Requires at least: 6.2
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.3.6
+Stable tag: 1.3.7
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -14,7 +14,7 @@ Accept stablecoin payments in Easy Digital Downloads with Paymos hosted checkout
 
 The official package contains no merchant credentials. Open Downloads -> Settings -> Payments -> Paymos and click Connect Paymos. Approve the current project in Paymos; the plugin receives Sandbox and Live credentials once, stores them in an AES-256-GCM encrypted WordPress option, and discards the short-lived OAuth token.
 
-Runtime Merchant API requests remain HMAC signed. Signed webhooks update payments and the reconciliation path recovers missed deliveries.
+Runtime Merchant API requests remain HMAC signed. Signed webhooks update payments. There is no local reconciliation job in this plugin: a delivery that fails is retried by Paymos across roughly 16 hours, and anything that outlives the ladder is replayed by hand from the Paymos dashboard.
 
 == Installation ==
 
