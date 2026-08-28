@@ -191,3 +191,7 @@ msgstr ""
 #: includes/StorefrontHooks.php:96
 msgid "Settings"
 msgstr ""
+
+#: includes/PaymentMapper.php:235
+msgid "in the invoice currency"
+msgstr ""

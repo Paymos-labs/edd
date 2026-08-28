@@ -6,6 +6,24 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 The public release history also lives at [paymos.io/changelog](https://paymos.io/changelog).
 
+## [Unreleased]
+
+## [1.3.7] - 2026-08-28
+
+- release: the changelog rot had a cause, and it was not the one I named
+- audit: the shipped plugin and SDK docs described a product we stopped shipping
+- docs(plugins): eight README stubs become the front pages they already were
+- fix(i18n): unblock the production build — the gate was right, the map was stale
+- docs(plugins): the changelogs stopped in June and the audit never reached them
+- chore: bundle Paymos PHP SDK v1.4.0
+- chore: rebuild canonical CMS package
+
+### Fixed
+- Entries that were present, non-empty and still English — `Connect Paymos` in
+  German and Spanish, the plugin name in Turkish and Chinese, `Webhook URL` in
+  Chinese — and one string missing from every catalogue
+  (`in the invoice currency`, the fallback in the underpayment notice).
+
 ## [1.3.6] - 2026-08-08
 
 - fix(plugins): make the six shipped locales actually reach the merchant
