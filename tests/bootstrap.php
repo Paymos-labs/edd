@@ -5,6 +5,17 @@ declare(strict_types=1);
 define('ABSPATH', __DIR__);
 define('PAYMOS_EDD_TESTING', true);
 define('PAYMOS_EDD_PLUGIN_DIR', dirname(__DIR__) . DIRECTORY_SEPARATOR);
+
+// Any deprecation, notice or warning inside plugin code must fail the run:
+// platform installers (Magento DI compile above all) escalate PHP 8.4+
+// deprecations to fatals, and a silent one here is how rejections slip through.
+error_reporting(E_ALL);
+set_error_handler(static function ($severity, $message, $file, $line) {
+    if (!(error_reporting() & $severity)) {
+        return false;
+    }
+    throw new ErrorException($message, 0, $severity, $file, $line);
+});
 define('PAYMOS_EDD_PLUGIN_FILE', PAYMOS_EDD_PLUGIN_DIR . 'paymos-easy-digital-downloads.php');
 
 $GLOBALS['paymos_edd_options'] = array();
@@ -95,6 +106,26 @@ function esc_html__($text, $domain = null) { return esc_html($text); }
 function esc_html($text) { return htmlspecialchars((string) $text, ENT_QUOTES, 'UTF-8'); }
 function wp_kses_post($text) { return (string) $text; }
 function wp_json_encode($value) { return json_encode($value); }
+if (!function_exists('add_action')) {
+    function add_action($hook, $callback, $priority = 10, $acceptedArgs = 1) { return true; }
+}
+if (!function_exists('add_filter')) {
+    function add_filter($hook, $callback, $priority = 10, $acceptedArgs = 1) { return true; }
+}
+if (!function_exists('plugin_basename')) {
+    function plugin_basename($file) { return basename(dirname($file)) . '/' . basename($file); }
+}
+if (!function_exists('load_plugin_textdomain')) {
+    function load_plugin_textdomain($domain, $deprecated = false, $relative = false) { return true; }
+}
+if (!function_exists('__return_false')) {
+    function __return_false() { return false; }
+}
+if (!function_exists('register_activation_hook')) {
+    function register_activation_hook()
+    {
+    }
+}
 function plugin_dir_path($file) { return dirname($file) . DIRECTORY_SEPARATOR; }
 function plugin_basename($file) { return basename($file); }
 function plugins_url($path = '', $file = '') { return 'https://shop.example.com/wp-content/plugins/paymos-easy-digital-downloads/' . ltrim((string) $path, '/'); }
@@ -283,7 +314,7 @@ final class FakePaymosClient
     /** @var FakePaymosInvoices */
     public $invoices;
 
-    public function __construct(FakePaymosInvoices $invoices = null)
+    public function __construct(?FakePaymosInvoices $invoices = null)
     {
         $this->invoices = $invoices ?: new FakePaymosInvoices();
     }
