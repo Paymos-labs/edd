@@ -8,6 +8,32 @@ The public release history also lives at [paymos.io/changelog](https://paymos.io
 
 ## [Unreleased]
 
+## [1.3.16] - 2026-09-25
+
+- docs(plugins): переводы сообщения о заблокированной замене счёта и сверка минимальных версий
+- chore: rebuild canonical CMS package
+
+### Fixed
+- Entries that were present, non-empty and still English — `Connect Paymos` in
+  German and Spanish, the plugin name in Turkish and Chinese, `Webhook URL` in
+  Chinese — and one string missing from every catalogue
+  (`in the invoice currency`, the fallback in the underpayment notice).
+- A late non-final webhook could reopen a finished order. Webhooks are
+  delivered at least once and in no particular order, and only paid orders were
+  guarded: an `invoice.underpaid_waiting` or `invoice.confirming` arriving after
+  the invoice had already ended underpaid, expired or cancelled moved the order
+  back into an open state. Nothing leaves a final status on the server, so once
+  one is recorded for an invoice every later event for it is ignored and the
+  final status stays recorded.
+- A new invoice now resets the Paymos status recorded on the payment, so an
+  event for it is never taken for a stale one after an earlier final status.
+- A webhook retry that arrived while the first delivery was still being
+  processed was answered 200 "duplicate". Paymos gives a delivery 10 seconds and
+  retries, while a slow reverse-verification call can take longer; the retry was
+  acknowledged as delivered, and if the first attempt then failed the event was
+  lost. An event that is only locked, not yet committed, is now answered 409 so
+  Paymos tries again, and the lock the first delivery holds is left alone.
+
 ## [1.3.15] - 2026-09-25
 
 - chore: bundle Paymos PHP SDK v1.4.3

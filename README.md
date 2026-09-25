@@ -8,7 +8,7 @@ not what unlocks the file.
 
 ## Requirements
 
-- WordPress 6.2 or newer, tested up to 7.0 — the floor in the plugin header of
+- WordPress 6.5 or newer, tested up to 7.0 — the floor in the plugin header of
   `paymos-easy-digital-downloads.php`
 - Easy Digital Downloads, declared in that header as a required plugin. The order model this gateway
   writes to is the EDD 3.x one
