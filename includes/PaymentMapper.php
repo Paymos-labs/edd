@@ -21,12 +21,29 @@ final class PaymentMapper
         $status = isset($event['data']['status']) && is_scalar($event['data']['status']) ? (string) $event['data']['status'] : null;
         $action = StatusMapper::invoiceAction($eventType, $status);
 
+        // Read before recordEvent(): the status this payment already reached.
+        $previousStatus = PaymentRepository::getMeta($paymentId, '_paymos_last_status');
         $this->recordEvent($paymentId, $event, $eventType);
 
         if (PaymentRepository::isComplete($paymentId) && $this->wouldRollBackCompletePayment($action)) {
             PaymentRepository::insertNote($paymentId, __('Payment already complete — later status update from Paymos disregarded.', 'paymos-easy-digital-downloads'));
             return;
         }
+
+        // Nothing leaves a final status on the server (Invoice.IsTerminal), so an
+        // event that arrives after one is an out-of-order redelivery. Guarding only
+        // completed payments let a late underpaid_waiting reopen a failed payment
+        // as pending. The final status stays recorded.
+        if (StatusMapper::isFinalStatus($previousStatus)) {
+            Logger::info('Paymos ignored an invoice status that arrived after a final one.', array(
+                'payment_id' => (string) $paymentId,
+                'final_status' => (string) $previousStatus,
+                'event_type' => $eventType,
+            ));
+            return;
+        }
+
+        $this->recordStatus($paymentId, $event);
 
         switch ($action) {
             case StatusMapper::ACTION_CONFIRMING:
@@ -187,9 +204,6 @@ final class PaymentMapper
         if (isset($event['event_id']) && is_scalar($event['event_id'])) {
             PaymentRepository::updateMeta($paymentId, '_paymos_last_event_id', (string) $event['event_id']);
         }
-        if (isset($event['data']['status']) && is_scalar($event['data']['status'])) {
-            PaymentRepository::updateMeta($paymentId, '_paymos_last_status', (string) $event['data']['status']);
-        }
         // Paymos serializes timestamps as Unix seconds (int); fall back to
         // data.created_at when the envelope omits occurred_at.
         $ts = null;
@@ -200,6 +214,20 @@ final class PaymentMapper
         }
         if ($ts !== null) {
             PaymentRepository::updateMeta($paymentId, '_paymos_last_event_at', gmdate('c', $ts));
+        }
+    }
+
+    /**
+     * Recorded apart from the rest of the event, and only for an event that is
+     * actually applied: a stale one must not overwrite the final status the
+     * guard in apply() relies on.
+     *
+     * @param array<string, mixed> $event
+     */
+    private function recordStatus($paymentId, array $event)
+    {
+        if (isset($event['data']['status']) && is_scalar($event['data']['status'])) {
+            PaymentRepository::updateMeta($paymentId, '_paymos_last_status', (string) $event['data']['status']);
         }
     }
 

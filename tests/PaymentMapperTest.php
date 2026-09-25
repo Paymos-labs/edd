@@ -61,3 +61,24 @@ function test_edd_payment_mapper_still_reports_a_confirming_payment_as_confirmin
     $note = implode(' ', $GLOBALS['paymos_edd_payment_notes'][$paymentId] ?? array());
     assertTrueValue(stripos($note, 'confirming') !== false, 'A confirming payment must still say so.');
 }
+
+function test_edd_payment_mapper_ignores_a_stale_event_after_a_failed_invoice()
+{
+    // BUG-135: the invoice already ended underpaid (payment failed). A delayed
+    // underpaid_waiting for the same invoice must not reopen it as pending.
+    paymos_edd_reset_test_state();
+    $paymentId = edd_insert_payment(array('price' => '100.00', 'currency' => 'USD', 'status' => 'failed'));
+    edd_update_payment_meta($paymentId, '_paymos_last_status', 'underpaid');
+
+    (new PaymentMapper())->apply($paymentId, array(
+        'event_id' => 'evt_stale',
+        'event_type' => 'invoice.underpaid_waiting',
+        'data' => array(
+            'status' => 'underpaid_waiting',
+            'payment' => array('currency' => 'USDT', 'paid' => '60', 'remaining' => '40'),
+        ),
+    ));
+
+    assertSameValue('failed', edd_get_payment_status($paymentId), 'a stale event after a final status must not move the payment.');
+    assertSameValue('underpaid', edd_get_payment_meta($paymentId, '_paymos_last_status', true), 'the final status must stay recorded.');
+}
