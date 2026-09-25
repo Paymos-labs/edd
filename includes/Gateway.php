@@ -221,6 +221,10 @@ final class Gateway
         PaymentRepository::updateMeta((int) $paymentId, '_paymos_project_id', (string) $config['project_id']);
         PaymentRepository::updateMeta((int) $paymentId, '_paymos_invoice_amount', $amount);
         PaymentRepository::updateMeta((int) $paymentId, '_paymos_invoice_currency', strtoupper($currency));
+        // The status of THIS invoice. The mapper ignores every event after a
+        // final status (PaymentMapper::apply), so a payment EDD resumes must not
+        // carry the final status of an invoice it had before.
+        PaymentRepository::updateMeta((int) $paymentId, '_paymos_last_status', isset($invoice['status']) && is_scalar($invoice['status']) ? (string) $invoice['status'] : '');
         PaymentRepository::insertNote((int) $paymentId, sprintf(__('Paymos invoice created: %s', 'paymos-easy-digital-downloads'), $invoiceId));
 
         if (function_exists('edd_empty_cart')) {

@@ -220,3 +220,21 @@ function paymos_edd_seed_payment()
         '_paymos_invoice_currency' => 'USD',
     );
 }
+
+function test_edd_webhook_answers_409_while_the_event_is_still_being_processed()
+{
+    // BUG-103: another delivery of this event holds the lock and has not
+    // finished. A 200 "duplicate" would mark it delivered — lost if that
+    // delivery then fails. Answer 409 and leave the lock alone.
+    paymos_edd_reset_test_state();
+    paymos_edd_seed_payment();
+    $lockKey = 'paymos_edd_evt_' . md5('evt_inflight') . '_lock';
+    set_transient($lockKey, '1', 300);
+
+    $body = json_encode(paymos_edd_invoice_event('evt_inflight', 'invoice.paid', 'paid'));
+    $response = WebhookController::handle(new WP_REST_Request($body, array('x-webhook-signature' => paymos_edd_signed_header('whsec_sandbox', $body))));
+
+    assertSameValue(409, $response->get_status(), 'an event still in flight must be answered non-2xx so the server retries.');
+    assertSameValue('1', get_transient($lockKey), 'the retry must not release the lock the first delivery still holds.');
+    assertSameValue('pending', $GLOBALS['paymos_edd_payments'][100]['status'], 'nothing may be applied while the event is in flight.');
+}
