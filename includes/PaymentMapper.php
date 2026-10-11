@@ -30,6 +30,14 @@ final class PaymentMapper
             return;
         }
 
+        // invoice-late-payment: money crossed the invoice's total AFTER it closed. One native note,
+        // idempotent per invoice, BEFORE the final-status guard below (a late event arrives after a
+        // terminal status by definition). No status, stock or money action.
+        if ($action === StatusMapper::ACTION_NOTE_PAID_LATE) {
+            $this->addPaidLateNote($paymentId, $event);
+            return;
+        }
+
         // Nothing leaves a final status on the server (Invoice.IsTerminal), so an
         // event that arrives after one is an out-of-order redelivery. Guarding only
         // completed payments let a late underpaid_waiting reopen a failed payment
@@ -99,6 +107,35 @@ final class PaymentMapper
                 PaymentRepository::insertNote($paymentId, __('Paymos invoice was cancelled or expired.', 'paymos-easy-digital-downloads'));
                 break;
         }
+    }
+
+    /**
+     * invoice-late-payment: the one allowed effect of a late payment — a native payment note.
+     * Marker per invoice (one order can outlive several invoices); it lands only after the note
+     * call, so duplicates/redeliveries never write a second note.
+     *
+     * @param int $paymentId
+     * @param array<string, mixed> $event
+     */
+    private function addPaidLateNote($paymentId, array $event)
+    {
+        $invoiceId = isset($event['data']['invoice_id']) && is_scalar($event['data']['invoice_id'])
+            ? (string) $event['data']['invoice_id']
+            : '';
+        $marker = '_paymos_paid_late_note' . ($invoiceId !== '' ? ':' . $invoiceId : '');
+
+        if (PaymentRepository::getMeta($paymentId, $marker) !== '') {
+            Logger::info('Paymos paid-late note already recorded for this invoice.', array(
+                'payment_id' => (string) $paymentId,
+                'invoice_id' => $invoiceId,
+            ));
+            return;
+        }
+
+        PaymentRepository::insertNote($paymentId, __('Paymos: payment arrived after the invoice deadline and covered the full amount.', 'paymos-easy-digital-downloads'));
+        PaymentRepository::updateMeta($paymentId, $marker, isset($event['event_id']) && is_scalar($event['event_id'])
+            ? (string) $event['event_id']
+            : '1');
     }
 
     /**
