@@ -193,3 +193,7 @@ msgstr "Ayarlar"
 #: includes/PaymentMapper.php:235
 msgid "in the invoice currency"
 msgstr "fatura para biriminde"
+
+#: includes/PaymentMapper.php:135
+msgid "Paymos: the customer finished paying for this order after the invoice closed. Check stock, then fulfil the order manually or refund the payment."
+msgstr "Paymos: Müşteri bu siparişin ödemesini gecikmeyle tamamladı. Stoku kontrol edin, sonra siparişi elle teslim edin ya da ödemeyi iade edin."

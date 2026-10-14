@@ -193,3 +193,7 @@ msgstr "Статус подключения"
 #: includes/PaymentMapper.php:235
 msgid "in the invoice currency"
 msgstr "в валюте счёта"
+
+#: includes/PaymentMapper.php:135
+msgid "Paymos: the customer finished paying for this order after the invoice closed. Check stock, then fulfil the order manually or refund the payment."
+msgstr "Paymos: пришла полная оплата с опозданием. Проверьте склад: выдайте заказ вручную или верните деньги."
