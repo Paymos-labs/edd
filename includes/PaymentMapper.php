@@ -132,7 +132,7 @@ final class PaymentMapper
             return;
         }
 
-        PaymentRepository::insertNote($paymentId, __('Paymos: payment arrived after the invoice deadline and covered the full amount.', 'paymos-easy-digital-downloads'));
+        PaymentRepository::insertNote($paymentId, __('Paymos: the customer finished paying for this order after the invoice closed. Check stock, then fulfil the order manually or refund the payment.', 'paymos-easy-digital-downloads'));
         PaymentRepository::updateMeta($paymentId, $marker, isset($event['event_id']) && is_scalar($event['event_id'])
             ? (string) $event['event_id']
             : '1');

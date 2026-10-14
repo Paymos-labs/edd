@@ -197,3 +197,7 @@ msgstr "设置"
 #: includes/PaymentMapper.php:235
 msgid "in the invoice currency"
 msgstr "以账单货币计"
+
+#: includes/PaymentMapper.php:135
+msgid "Paymos: the customer finished paying for this order after the invoice closed. Check stock, then fulfil the order manually or refund the payment."
+msgstr "Paymos：这笔订单在账单关闭后才付清。请核对库存，再手动完成订单或向买家退款。"

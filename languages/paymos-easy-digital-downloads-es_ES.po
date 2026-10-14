@@ -133,3 +133,7 @@ msgstr "Configuración"
 #: includes/PaymentMapper.php:235
 msgid "in the invoice currency"
 msgstr "en la moneda de la factura"
+
+#: includes/PaymentMapper.php:135
+msgid "Paymos: the customer finished paying for this order after the invoice closed. Check stock, then fulfil the order manually or refund the payment."
+msgstr "Paymos: el cliente terminó de pagar este pedido con retraso. Revisa el inventario y completa el pedido a mano o devuélvele el dinero."

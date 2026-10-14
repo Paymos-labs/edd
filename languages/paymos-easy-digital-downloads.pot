@@ -195,3 +195,7 @@ msgstr ""
 #: includes/PaymentMapper.php:235
 msgid "in the invoice currency"
 msgstr ""
+
+#: includes/PaymentMapper.php:135
+msgid "Paymos: the customer finished paying for this order after the invoice closed. Check stock, then fulfil the order manually or refund the payment."
+msgstr ""
