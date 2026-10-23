@@ -13,6 +13,7 @@ function test_edd_payment_mapper_names_the_shortfall_on_an_underpaid_invoice()
 {
     paymos_edd_reset_test_state();
     $paymentId = 4242;
+    $GLOBALS['paymos_edd_payments'][$paymentId] = array('id'=>$paymentId, 'status'=>'pending', 'gateway'=>'paymos');
 
     (new PaymentMapper())->apply($paymentId, array(
         'event_type' => 'invoice.underpaid_waiting',
@@ -35,6 +36,7 @@ function test_edd_payment_mapper_reports_a_rolled_back_payment_without_inventing
 {
     paymos_edd_reset_test_state();
     $paymentId = 4243;
+    $GLOBALS['paymos_edd_payments'][$paymentId] = array('id'=>$paymentId, 'status'=>'pending', 'gateway'=>'paymos');
 
     (new PaymentMapper())->apply($paymentId, array(
         'event_type' => 'invoice.awaiting_payment',
@@ -52,6 +54,7 @@ function test_edd_payment_mapper_still_reports_a_confirming_payment_as_confirmin
 {
     paymos_edd_reset_test_state();
     $paymentId = 4244;
+    $GLOBALS['paymos_edd_payments'][$paymentId] = array('id'=>$paymentId, 'status'=>'pending', 'gateway'=>'paymos');
 
     (new PaymentMapper())->apply($paymentId, array(
         'event_type' => 'invoice.confirming',
@@ -67,7 +70,7 @@ function test_edd_payment_mapper_ignores_a_stale_event_after_a_failed_invoice()
     // BUG-135: the invoice already ended underpaid (payment failed). A delayed
     // underpaid_waiting for the same invoice must not reopen it as pending.
     paymos_edd_reset_test_state();
-    $paymentId = edd_insert_payment(array('price' => '100.00', 'currency' => 'USD', 'status' => 'failed'));
+    $paymentId = edd_insert_payment(array('price' => '100.00', 'currency' => 'USD', 'status' => 'failed', 'gateway' => 'paymos'));
     edd_update_payment_meta($paymentId, '_paymos_last_status', 'underpaid');
 
     (new PaymentMapper())->apply($paymentId, array(

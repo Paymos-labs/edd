@@ -46,6 +46,7 @@ function test_edd_webhook_does_not_roll_back_completed_payment_on_late_cancel()
             'invoice_id' => 'inv_123',
             'project_id' => 'prj_123',
             'status' => 'cancelled',
+            'is_test' => true,
             'order' => array('external_id' => 'edd_100_abc123', 'amount' => '100', 'currency' => 'USD'),
         ));
     });
@@ -132,7 +133,7 @@ function test_edd_webhook_keeps_payment_pending_on_amount_mismatch()
 
     $response = WebhookController::handle($request);
 
-    assertSameValue(200, $response->get_status(), 'Webhook with paid invoice should still be accepted.');
+    assertSameValue(400, $response->get_status(), 'Mismatched paid invoice must stay retryable.');
     assertSameValue('pending', $GLOBALS['paymos_edd_payments'][100]['status'], 'Amount mismatch should not complete payment.');
     assertSameValue('yes', $GLOBALS['paymos_edd_payment_meta'][100]['_paymos_amount_mismatch'], 'Amount mismatch should be recorded.');
 }
@@ -147,6 +148,7 @@ function test_edd_webhook_cancelled_invoice_marks_payment_abandoned()
             'invoice_id' => 'inv_123',
             'project_id' => 'prj_123',
             'status' => 'cancelled',
+            'is_test' => true,
             'order' => array(
                 'external_id' => 'edd_100_abc123',
                 'amount' => '100',
@@ -174,6 +176,7 @@ function test_edd_webhook_expired_invoice_marks_payment_abandoned()
             'invoice_id' => 'inv_123',
             'project_id' => 'prj_123',
             'status' => 'expired',
+            'is_test' => true,
             'order' => array(
                 'external_id' => 'edd_100_abc123',
                 'amount' => '100',
@@ -210,6 +213,7 @@ function paymos_edd_seed_payment()
         'price' => '100.00',
         'currency' => 'USD',
         'status' => 'pending',
+        'gateway' => 'paymos',
     );
     $GLOBALS['paymos_edd_payment_meta'][100] = array(
         '_paymos_invoice_id' => 'inv_123',
@@ -228,13 +232,14 @@ function test_edd_webhook_answers_409_while_the_event_is_still_being_processed()
     // delivery then fails. Answer 409 and leave the lock alone.
     paymos_edd_reset_test_state();
     paymos_edd_seed_payment();
-    $lockKey = 'paymos_edd_evt_' . md5('evt_inflight') . '_lock';
-    set_transient($lockKey, '1', 300);
+    $owner = new PaymosEasyDigitalDownloads\EventStore();
+    assertTrueValue($owner->remember('evt_inflight', 3600), 'First worker reserves the event.');
 
     $body = json_encode(paymos_edd_invoice_event('evt_inflight', 'invoice.paid', 'paid'));
     $response = WebhookController::handle(new WP_REST_Request($body, array('x-webhook-signature' => paymos_edd_signed_header('whsec_sandbox', $body))));
 
     assertSameValue(409, $response->get_status(), 'an event still in flight must be answered non-2xx so the server retries.');
-    assertSameValue('1', get_transient($lockKey), 'the retry must not release the lock the first delivery still holds.');
+    assertSameValue('processing', $GLOBALS['wpdb']->rows[md5('evt_inflight')]['status'], 'Retry must not release another owner reservation.');
+    $owner->release();
     assertSameValue('pending', $GLOBALS['paymos_edd_payments'][100]['status'], 'nothing may be applied while the event is in flight.');
 }

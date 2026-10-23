@@ -53,6 +53,7 @@ require __DIR__ . '/GatewayTest.php';
 require __DIR__ . '/PaymentMapperTest.php';
 require __DIR__ . '/PaidLateCallbackTest.php';
 require __DIR__ . '/WebhookControllerTest.php';
+require __DIR__ . '/PaymentSafetyTest.php';
 
 $tests = array_filter(get_defined_functions()['user'], static function ($name) {
     return strpos($name, 'test_edd_') === 0;
