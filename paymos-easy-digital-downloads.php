@@ -3,14 +3,14 @@
  * Plugin Name: Paymos for Easy Digital Downloads
  * Plugin URI: https://paymos.io/docs/cms-easy-digital-downloads
  * Description: Accept stablecoin payments in Easy Digital Downloads through Paymos.
- * Version: 1.4.1
+ * Version: 1.4.2
  * Author: Paymos
  * Author URI: https://paymos.io
  * License: GPL-2.0-or-later
  * Text Domain: paymos-easy-digital-downloads
  * Domain Path: /languages
  * Requires at least: 6.5
- * Tested up to: 7.0
+ * Tested up to: 7.1
  * Requires PHP: 7.4
  * Requires Plugins: easy-digital-downloads
  */
@@ -19,7 +19,7 @@ defined('ABSPATH') || exit;
 
 define('PAYMOS_EDD_PLUGIN_FILE', __FILE__);
 define('PAYMOS_EDD_PLUGIN_DIR', plugin_dir_path(__FILE__));
-define('PAYMOS_EDD_PLUGIN_VERSION', '1.4.1');
+define('PAYMOS_EDD_PLUGIN_VERSION', '1.4.2');
 
 require_once PAYMOS_EDD_PLUGIN_DIR . 'includes/Autoloader.php';
 
@@ -48,4 +48,7 @@ add_action('rest_api_init', static function () {
 PaymosEasyDigitalDownloads\StorefrontHooks::register();
 PaymosEasyDigitalDownloads\ConnectController::register();
 
-register_activation_hook(PAYMOS_EDD_PLUGIN_FILE, array(PaymosEasyDigitalDownloads\EventStore::class, 'install'));
+add_action('init', array(PaymosEasyDigitalDownloads\EventStore::class, 'scheduleCleanup'));
+add_action('paymos_edd_cleanup_events', array(PaymosEasyDigitalDownloads\EventStore::class, 'purgeExpired'));
+register_activation_hook(PAYMOS_EDD_PLUGIN_FILE, array(PaymosEasyDigitalDownloads\EventStore::class, 'activate'));
+register_deactivation_hook(PAYMOS_EDD_PLUGIN_FILE, array(PaymosEasyDigitalDownloads\EventStore::class, 'deactivate'));

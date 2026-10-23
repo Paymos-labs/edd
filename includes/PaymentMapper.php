@@ -6,6 +6,7 @@ namespace PaymosEasyDigitalDownloads;
 
 use Paymos\Plugin\AmountGuard;
 use Paymos\Plugin\StatusMapper;
+use Paymos\Plugin\WordPressOrderLock;
 
 defined('ABSPATH') || exit;
 
@@ -14,19 +15,47 @@ final class PaymentMapper
     /**
      * @param array<string, mixed> $event
      */
-    public function apply($paymentId, array $event)
+    public function apply($paymentId, array $event, ?WordPressOrderLock $ownedLock = null)
     {
         $paymentId = (int) $paymentId;
+        $lock = $ownedLock ?: new WordPressOrderLock('paymos-edd', $paymentId);
+        if ($ownedLock === null && !$lock->acquire()) {
+            throw new \RuntimeException('Paymos payment is already being processed.');
+        }
+        try {
+            $lock->assertOwned();
+            if ($ownedLock === null) {
+                PaymentRepository::refresh($paymentId);
+            }
+            PaymentRepository::assertPaymosPayment($paymentId);
+            $this->applyLocked($paymentId, $event, $lock);
+        } finally {
+            if ($ownedLock === null) {
+                $lock->release();
+            }
+        }
+    }
+
+    private function applyLocked($paymentId, array $event, WordPressOrderLock $lock)
+    {
         $eventType = isset($event['event_type']) && is_scalar($event['event_type']) ? (string) $event['event_type'] : '';
         $status = isset($event['data']['status']) && is_scalar($event['data']['status']) ? (string) $event['data']['status'] : null;
         $action = StatusMapper::invoiceAction($eventType, $status);
 
         // Read before recordEvent(): the status this payment already reached.
-        $previousStatus = PaymentRepository::getMeta($paymentId, '_paymos_last_status');
+        $previousStatus = PaymentRepository::getMeta($paymentId, '_paymos_applied_status');
+        if ($previousStatus === '') {
+            $legacyStatus = PaymentRepository::getMeta($paymentId, '_paymos_last_status');
+            // Legacy paid was written before the amount/native guards. It is
+            // evidence of observation, not evidence of fulfilled downloads.
+            $previousStatus = in_array($legacyStatus, array('underpaid', 'expired', 'cancelled'), true) ? $legacyStatus : '';
+        }
         $this->recordEvent($paymentId, $event, $eventType);
 
-        if (PaymentRepository::isComplete($paymentId) && $this->wouldRollBackCompletePayment($action)) {
-            PaymentRepository::insertNote($paymentId, __('Payment already complete — later status update from Paymos disregarded.', 'paymos-easy-digital-downloads'));
+        if (PaymentRepository::isProtected($paymentId) && $action !== StatusMapper::ACTION_NOTE_PAID_LATE) {
+            if (PaymentRepository::isComplete($paymentId) && $this->wouldRollBackCompletePayment($action)) {
+                PaymentRepository::insertNote($paymentId, __('Payment already complete — later status update from Paymos disregarded.', 'paymos-easy-digital-downloads'));
+            }
             return;
         }
 
@@ -51,10 +80,9 @@ final class PaymentMapper
             return;
         }
 
-        $this->recordStatus($paymentId, $event);
-
         switch ($action) {
             case StatusMapper::ACTION_CONFIRMING:
+                $lock->assertOwned();
                 PaymentRepository::updateStatus($paymentId, 'pending');
                 PaymentRepository::insertNote($paymentId, __('Paymos payment is confirming.', 'paymos-easy-digital-downloads'));
                 break;
@@ -63,6 +91,7 @@ final class PaymentMapper
             // it must not borrow that wording: a short payment needs the customer to
             // send the rest, while "confirming" tells the merchant to simply wait.
             case StatusMapper::ACTION_AWAITING_PAYMENT:
+                $lock->assertOwned();
                 PaymentRepository::updateStatus($paymentId, 'pending');
                 PaymentRepository::insertNote($paymentId, $this->awaitingPaymentNote($event));
                 break;
@@ -78,7 +107,7 @@ final class PaymentMapper
                 if (!$this->isSafeToComplete($paymentId, $event)) {
                     PaymentRepository::updateMeta($paymentId, '_paymos_amount_mismatch', 'yes');
                     PaymentRepository::insertNote($paymentId, $this->mismatchNote($paymentId, $event));
-                    break;
+                    throw new \RuntimeException('Paymos payment amount does not match the current purchase.');
                 }
 
                 $transfer = $this->selectedTransfer($event);
@@ -91,11 +120,13 @@ final class PaymentMapper
                 }
                 PaymentRepository::updateMeta($paymentId, '_paymos_amount_mismatch', 'no');
                 PaymentRepository::setTransactionId($paymentId, $hash);
+                $lock->assertOwned();
                 PaymentRepository::updateStatus($paymentId, 'complete');
                 PaymentRepository::insertNote($paymentId, __('Paymos payment completed.', 'paymos-easy-digital-downloads'));
                 break;
 
             case StatusMapper::ACTION_FAIL_ORDER:
+                $lock->assertOwned();
                 PaymentRepository::updateStatus($paymentId, 'failed');
                 PaymentRepository::insertNote($paymentId, __('Underpaid — the on-chain amount was less than the invoice total.', 'paymos-easy-digital-downloads'));
                 break;
@@ -103,9 +134,14 @@ final class PaymentMapper
             case StatusMapper::ACTION_CANCEL_ORDER:
                 // EDD 3.x has no 'cancelled' order status; an invoice that expired
                 // or was cancelled before payment is idiomatically 'abandoned'.
+                $lock->assertOwned();
                 PaymentRepository::updateStatus($paymentId, 'abandoned');
                 PaymentRepository::insertNote($paymentId, __('Paymos invoice was cancelled or expired.', 'paymos-easy-digital-downloads'));
                 break;
+        }
+        if ($action !== StatusMapper::ACTION_IGNORE) {
+            $lock->assertOwned();
+            $this->recordStatus($paymentId, $event);
         }
     }
 
@@ -265,6 +301,7 @@ final class PaymentMapper
     {
         if (isset($event['data']['status']) && is_scalar($event['data']['status'])) {
             PaymentRepository::updateMeta($paymentId, '_paymos_last_status', (string) $event['data']['status']);
+            PaymentRepository::updateMeta($paymentId, '_paymos_applied_status', (string) $event['data']['status']);
         }
     }
 

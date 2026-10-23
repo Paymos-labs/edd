@@ -8,14 +8,30 @@ defined('ABSPATH') || exit;
 
 final class PaymentRepository
 {
+    /** Discard EDD's request/object-cache snapshots after obtaining the mutex. */
+    public static function refresh($paymentId)
+    {
+        $paymentId = (int) $paymentId;
+        // EDD 3.x Query::get_item_by caches native orders in this group; its
+        // cache_delete/clean_item_cache helpers are private. Use public WP APIs
+        // for these exact keys, without flushing another order or the site.
+        wp_cache_delete($paymentId, 'edd-orders');
+        wp_cache_delete($paymentId, 'edd_order_meta');
+        if (function_exists('clean_post_cache')) {
+            clean_post_cache($paymentId);
+        }
+    }
+
     public static function updateMeta($paymentId, $key, $value)
     {
         if (function_exists('edd_update_payment_meta')) {
             edd_update_payment_meta((int) $paymentId, (string) $key, $value);
-            return;
+        } else {
+            update_post_meta((int) $paymentId, (string) $key, $value);
         }
-
-        update_post_meta((int) $paymentId, (string) $key, $value);
+        if (is_scalar($value) && self::getMeta($paymentId, $key) !== (string) $value) {
+            throw new \RuntimeException('Paymos payment metadata could not be saved.');
+        }
     }
 
     public static function getMeta($paymentId, $key)
@@ -31,8 +47,13 @@ final class PaymentRepository
 
     public static function updateStatus($paymentId, $status)
     {
-        if (function_exists('edd_update_payment_status')) {
-            edd_update_payment_status((int) $paymentId, (string) $status);
+        if (!function_exists('edd_update_payment_status')) {
+            throw new \RuntimeException('EDD payment status API is unavailable.');
+        }
+        $result = edd_update_payment_status((int) $paymentId, (string) $status);
+        $expected = $status === 'complete' ? array('complete', 'publish', 'edd_complete') : array((string) $status);
+        if ($result === false || !in_array(self::status($paymentId), $expected, true)) {
+            throw new \RuntimeException('EDD payment status could not be saved.');
         }
     }
 
@@ -80,6 +101,20 @@ final class PaymentRepository
         return in_array(self::status((int) $paymentId), array('complete', 'publish', 'edd_complete'), true);
     }
 
+    public static function isProtected($paymentId)
+    {
+        return self::isComplete($paymentId)
+            || in_array(self::status($paymentId), array('refunded', 'revoked', 'partially_refunded'), true);
+    }
+
+    public static function assertPaymosPayment($paymentId)
+    {
+        if (self::status($paymentId) === '' || !function_exists('edd_get_payment_gateway')
+            || edd_get_payment_gateway((int) $paymentId) !== Gateway::ID) {
+            throw new \RuntimeException('EDD payment does not belong to Paymos.');
+        }
+    }
+
     public static function setTransactionId($paymentId, $transactionId)
     {
         $transactionId = (string) $transactionId;
@@ -98,7 +133,9 @@ final class PaymentRepository
     public static function insertNote($paymentId, $note)
     {
         if (function_exists('edd_insert_payment_note')) {
-            edd_insert_payment_note((int) $paymentId, (string) $note);
+            if (edd_insert_payment_note((int) $paymentId, (string) $note) === false) {
+                throw new \RuntimeException('EDD payment note could not be saved.');
+            }
         }
     }
 

@@ -7,6 +7,10 @@ namespace PaymosEasyDigitalDownloads;
 use Paymos\Client;
 use Paymos\ClientConfig;
 use Paymos\Exception\ApiException;
+use Paymos\Plugin\AmountGuard;
+use Paymos\Plugin\InvoiceReplacement;
+use Paymos\Plugin\InvoiceRenewal;
+use Paymos\Plugin\WordPressOrderLock;
 
 defined('ABSPATH') || exit;
 
@@ -143,7 +147,16 @@ final class Gateway
             return;
         }
 
-        $amount = self::formatAmount(isset($purchaseData['price']) ? $purchaseData['price'] : '0');
+        try {
+            $amount = self::formatAmount(isset($purchaseData['price']) ? $purchaseData['price'] : '0');
+            if ($amount === '0' || $amount[0] === '-') {
+                throw new \RuntimeException('Paymos purchase amount must be positive.');
+            }
+        } catch (\RuntimeException $e) {
+            edd_set_error('paymos_payment_record_failed', __('Paymos payment error: payment could not be recorded.', 'paymos-easy-digital-downloads'));
+            self::sendBackToCheckout($purchaseData);
+            return;
+        }
         $currency = function_exists('edd_get_currency') ? (string) edd_get_currency() : 'USD';
         $paymentData = array(
             'price' => $amount,
@@ -158,17 +171,80 @@ final class Gateway
             'status' => 'pending',
         );
 
-        $paymentId = edd_insert_payment($paymentData);
-        if (!$paymentId) {
-            edd_set_error('paymos_payment_record_failed', __('Paymos payment error: payment could not be recorded.', 'paymos-easy-digital-downloads'));
-            self::sendBackToCheckout($purchaseData);
-            return;
+        $paymentId = 0;
+        $lock = null;
+        try {
+            // EDD 3.x reads this exact session key before rebuilding a resumed
+            // order. Acquire before edd_insert_payment can change its contents.
+            $resumeId = self::resumePaymentId();
+            if ($resumeId > 0) {
+                $lock = new WordPressOrderLock('paymos-edd', $resumeId);
+                if (!$lock->acquire()) {
+                    throw new \RuntimeException('Paymos payment is already being processed.');
+                }
+                $lock->assertOwned();
+                PaymentRepository::refresh($resumeId);
+                if (PaymentRepository::isProtected($resumeId)) {
+                    throw new \RuntimeException('EDD payment is already terminal.');
+                }
+            }
+            $paymentId = edd_insert_payment($paymentData);
+            if (!$paymentId) {
+                edd_set_error('paymos_payment_record_failed', __('Paymos payment error: payment could not be recorded.', 'paymos-easy-digital-downloads'));
+                self::sendBackToCheckout($purchaseData, $lock);
+                return;
+            }
+            if ($lock === null || (int) $paymentId !== $resumeId) {
+                if ($lock !== null) {
+                    $lock->release();
+                }
+                $lock = new WordPressOrderLock('paymos-edd', (int) $paymentId);
+                if (!$lock->acquire()) {
+                    throw new \RuntimeException('Paymos payment is already being processed.');
+                }
+                PaymentRepository::refresh($paymentId);
+            }
+            $lock->assertOwned();
+            PaymentRepository::assertPaymosPayment($paymentId);
+            if (PaymentRepository::isProtected($paymentId)) {
+                throw new \RuntimeException('EDD payment is already terminal.');
+            }
+            self::processRecordedPayment($paymentId, $purchaseData, $amount, $currency, $lock);
+        } catch (\Throwable $e) {
+            Logger::error('Paymos invoice create failed: ' . $e->getMessage(), array('payment_id' => (string) $paymentId));
+            edd_set_error('paymos_invoice_failed', __('Paymos payment error: unable to create invoice.', 'paymos-easy-digital-downloads'));
+            self::sendBackToCheckout($purchaseData, $lock);
+        } finally {
+            if ($lock !== null) {
+                $lock->release();
+            }
         }
+    }
 
+    private static function resumePaymentId()
+    {
+        if (!function_exists('EDD')) {
+            return 0;
+        }
+        $edd = EDD();
+        if (!is_object($edd) || !isset($edd->session) || !is_object($edd->session) || !method_exists($edd->session, 'get')) {
+            return 0;
+        }
+        $id = $edd->session->get('edd_resume_payment');
+        return is_scalar($id) && ctype_digit((string) $id) ? (int) $id : 0;
+    }
+
+    private static function processRecordedPayment($paymentId, array $purchaseData, $amount, $currency, WordPressOrderLock $lock)
+    {
         try {
             $environment = Config::mode();
             $config = self::activeEnvironmentConfig($environment);
-            $externalOrderId = self::externalOrderId((int) $paymentId, (string) $paymentData['purchase_key']);
+            $amount = self::formatAmount(edd_get_payment_amount((int) $paymentId));
+            $currency = strtoupper((string) PaymentRepository::currency($paymentId));
+            if ($amount === '0' || $amount[0] === '-' || $currency === '') {
+                throw new \RuntimeException('Paymos purchase amount or currency is invalid.');
+            }
+            $externalOrderId = self::prepareIntent($paymentId, $environment, $config, $amount, $currency, self::clientId($purchaseData), $lock);
             $payload = array(
                 'project_id' => (string) $config['project_id'],
                 'amount' => $amount,
@@ -176,45 +252,76 @@ final class Gateway
                 'external_order_id' => $externalOrderId,
             );
 
-            $clientId = self::clientId($purchaseData);
+            $clientId = PaymentRepository::getMeta($paymentId, '_paymos_client_id');
             if ($clientId !== '') {
                 $payload['client_id'] = $clientId;
             }
 
-            $invoice = self::client($config, $environment)->invoices()->create($payload);
+            $client = self::client($config, $environment);
+            $invoice = $client->invoices()->create($payload);
+            $lock->assertOwned();
+            self::assertCreatedInvoice($invoice, PaymentRepository::getMeta($paymentId, '_paymos_invoice_id'));
+            if (InvoiceRenewal::isRequired($invoice)) {
+                // An idempotent create can return the same closed invoice on a
+                // resumed purchase. Only API evidence and safe close permit a
+                // new intent; cached deadlines never decide this transition.
+                $closed = (new InvoiceReplacement($client))->close($invoice['invoice_id'], $invoice['status']);
+                $lock->assertOwned();
+                if (!$closed->isClosed()) {
+                    throw new \RuntimeException('Paymos previous invoice needs manual review.');
+                }
+                $externalOrderId = self::storeNewIntent($paymentId, $environment, $config, $amount, $currency, $clientId, $lock);
+                $payload['external_order_id'] = $externalOrderId;
+                $invoice = $client->invoices()->create($payload);
+                $lock->assertOwned();
+                self::assertCreatedInvoice($invoice, '');
+                if (InvoiceRenewal::isRequired($invoice)) {
+                    throw new \RuntimeException('Paymos replacement invoice is not payable.');
+                }
+            }
         } catch (ApiException $e) {
             Logger::error('Paymos invoice create failed: ' . $e->getMessage(), array('payment_id' => (string) $paymentId));
+            $lock->assertOwned();
             PaymentRepository::updateStatus((int) $paymentId, 'failed');
             edd_set_error('paymos_invoice_failed', __('Paymos payment error: unable to create invoice.', 'paymos-easy-digital-downloads'));
-            self::sendBackToCheckout($purchaseData);
+            self::sendBackToCheckout($purchaseData, $lock);
             return;
         } catch (\RuntimeException $e) {
             Logger::error('Paymos invoice create failed: ' . $e->getMessage(), array('payment_id' => (string) $paymentId));
+            $lock->assertOwned();
             PaymentRepository::updateStatus((int) $paymentId, 'failed');
             edd_set_error('paymos_config_failed', __('Paymos payment error: configuration is invalid.', 'paymos-easy-digital-downloads'));
-            self::sendBackToCheckout($purchaseData);
+            self::sendBackToCheckout($purchaseData, $lock);
             return;
         } catch (\InvalidArgumentException $e) {
             // ClientConfig throws InvalidArgumentException (a LogicException, not a
             // RuntimeException) on empty/invalid credentials — route it to the same
             // clean configuration-error path instead of a fatal mid-checkout.
             Logger::error('Paymos invoice create failed: ' . $e->getMessage(), array('payment_id' => (string) $paymentId));
+            $lock->assertOwned();
             PaymentRepository::updateStatus((int) $paymentId, 'failed');
             edd_set_error('paymos_config_failed', __('Paymos payment error: configuration is invalid.', 'paymos-easy-digital-downloads'));
-            self::sendBackToCheckout($purchaseData);
+            self::sendBackToCheckout($purchaseData, $lock);
             return;
         }
 
-        $invoiceId = isset($invoice['invoice_id']) ? (string) $invoice['invoice_id'] : '';
-        $paymentUrl = isset($invoice['payment_url']) ? (string) $invoice['payment_url'] : '';
-        if ($invoiceId === '' || $paymentUrl === '') {
+        $invoiceId = isset($invoice['invoice_id']) && is_string($invoice['invoice_id']) ? $invoice['invoice_id'] : '';
+        $paymentUrl = isset($invoice['payment_url']) && is_string($invoice['payment_url']) ? $invoice['payment_url'] : '';
+        if ($invoiceId === '' || !self::isPaymentUrlAllowed($paymentUrl)) {
+            $lock->assertOwned();
             PaymentRepository::updateStatus((int) $paymentId, 'failed');
             edd_set_error('paymos_invoice_response_invalid', __('Paymos payment error: invalid invoice response.', 'paymos-easy-digital-downloads'));
-            self::sendBackToCheckout($purchaseData);
+            self::sendBackToCheckout($purchaseData, $lock);
             return;
         }
 
+        $existingInvoiceId = PaymentRepository::getMeta($paymentId, '_paymos_invoice_id');
+        if ($existingInvoiceId !== '' && $existingInvoiceId !== $invoiceId) {
+            throw new \RuntimeException('Paymos idempotent create returned a different invoice.');
+        }
+        $lock->assertOwned();
         PaymentRepository::updateMeta((int) $paymentId, '_paymos_invoice_id', $invoiceId);
+        PaymentRepository::updateMeta((int) $paymentId, '_paymos_creation_intent', 'bound');
         PaymentRepository::updateMeta((int) $paymentId, '_paymos_external_order_id', $externalOrderId);
         PaymentRepository::updateMeta((int) $paymentId, '_paymos_payment_url', $paymentUrl);
         PaymentRepository::updateMeta((int) $paymentId, '_paymos_environment', $environment);
@@ -224,8 +331,8 @@ final class Gateway
         // The status of THIS invoice. The mapper ignores every event after a
         // final status (PaymentMapper::apply), so a payment EDD resumes must not
         // carry the final status of an invoice it had before.
-        PaymentRepository::updateMeta((int) $paymentId, '_paymos_last_status', isset($invoice['status']) && is_scalar($invoice['status']) ? (string) $invoice['status'] : '');
-        PaymentRepository::insertNote((int) $paymentId, sprintf(__('Paymos invoice created: %s', 'paymos-easy-digital-downloads'), $invoiceId));
+        PaymentRepository::updateMeta((int) $paymentId, '_paymos_observed_status', isset($invoice['status']) && is_scalar($invoice['status']) ? (string) $invoice['status'] : '');
+        PaymentRepository::insertNote((int) $paymentId, sprintf(/* translators: %s: Paymos invoice identifier. */ __('Paymos invoice created: %s', 'paymos-easy-digital-downloads'), $invoiceId));
 
         if (function_exists('edd_empty_cart')) {
             edd_empty_cart();
@@ -237,6 +344,8 @@ final class Gateway
             'environment' => $environment,
         ));
 
+        // exit does not execute PHP finally blocks; release before redirect.
+        $lock->release();
         self::redirect($paymentUrl);
     }
 
@@ -265,6 +374,7 @@ final class Gateway
         $config = Config::environment_config($environment);
         foreach (array('api_key', 'api_secret', 'project_id', 'base_url') as $required) {
             if (!isset($config[$required]) || !is_scalar($config[$required]) || trim((string) $config[$required]) === '') {
+                // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Diagnostic exception is caught and logged, never rendered as HTML.
                 throw new \RuntimeException('Paymos connected credentials are missing ' . $required . ' for ' . (string) $environment . '.');
             }
         }
@@ -277,10 +387,82 @@ final class Gateway
         return function_exists('edd_get_option') ? edd_get_option($key, $default) : $default;
     }
 
-    private static function externalOrderId($paymentId, $purchaseKey)
+    private static function prepareIntent($paymentId, $environment, array $config, $amount, $currency, $clientId, WordPressOrderLock $lock)
     {
-        $purchaseKey = preg_replace('/[^A-Za-z0-9_-]/', '', $purchaseKey);
-        return 'edd_' . (int) $paymentId . ($purchaseKey !== '' ? '_' . $purchaseKey : '');
+        $existing = PaymentRepository::getMeta($paymentId, '_paymos_external_order_id');
+        $same = $existing !== ''
+            && PaymentRepository::getMeta($paymentId, '_paymos_environment') === $environment
+            && PaymentRepository::getMeta($paymentId, '_paymos_project_id') === (string) $config['project_id']
+            && AmountGuard::amountsEqual(PaymentRepository::getMeta($paymentId, '_paymos_invoice_amount'), $amount)
+            && PaymentRepository::getMeta($paymentId, '_paymos_invoice_currency') === $currency;
+        if ($same) {
+            return $existing;
+        }
+        if ($existing !== '') {
+            $oldEnvironment = PaymentRepository::getMeta($paymentId, '_paymos_environment');
+            $oldConfig = self::activeEnvironmentConfig($oldEnvironment);
+            $oldClient = self::client($oldConfig, $oldEnvironment);
+            $oldInvoiceId = PaymentRepository::getMeta($paymentId, '_paymos_invoice_id');
+            if ($oldInvoiceId === '' && PaymentRepository::getMeta($paymentId, '_paymos_creation_intent') === 'pending') {
+                $oldPayload = array(
+                    'project_id' => PaymentRepository::getMeta($paymentId, '_paymos_project_id'),
+                    'amount' => PaymentRepository::getMeta($paymentId, '_paymos_invoice_amount'),
+                    'currency' => PaymentRepository::getMeta($paymentId, '_paymos_invoice_currency'),
+                    'external_order_id' => $existing,
+                );
+                $oldClientId = PaymentRepository::getMeta($paymentId, '_paymos_client_id');
+                if ($oldClientId !== '') {
+                    $oldPayload['client_id'] = $oldClientId;
+                }
+                $old = $oldClient->invoices()->create($oldPayload);
+                $oldInvoiceId = isset($old['invoice_id']) && is_string($old['invoice_id']) ? $old['invoice_id'] : '';
+            }
+            $closed = (new InvoiceReplacement($oldClient))->close($oldInvoiceId);
+            $lock->assertOwned();
+            if (!$closed->isClosed()) {
+                throw new \RuntimeException('Paymos previous invoice needs manual review.');
+            }
+        }
+        return self::storeNewIntent($paymentId, $environment, $config, $amount, $currency, $clientId, $lock);
+    }
+
+    private static function storeNewIntent($paymentId, $environment, array $config, $amount, $currency, $clientId, WordPressOrderLock $lock)
+    {
+        $external = 'edd_' . (int) $paymentId . '_' . bin2hex(random_bytes(16));
+        $lock->assertOwned();
+        // Durable intent precedes POST, including when the response is lost.
+        PaymentRepository::updateMeta($paymentId, '_paymos_external_order_id', $external);
+        PaymentRepository::updateMeta($paymentId, '_paymos_environment', $environment);
+        PaymentRepository::updateMeta($paymentId, '_paymos_project_id', (string) $config['project_id']);
+        PaymentRepository::updateMeta($paymentId, '_paymos_invoice_amount', $amount);
+        PaymentRepository::updateMeta($paymentId, '_paymos_invoice_currency', $currency);
+        PaymentRepository::updateMeta($paymentId, '_paymos_invoice_id', '');
+        PaymentRepository::updateMeta($paymentId, '_paymos_client_id', (string) $clientId);
+        PaymentRepository::updateMeta($paymentId, '_paymos_applied_status', '');
+        PaymentRepository::updateMeta($paymentId, '_paymos_last_status', '');
+        PaymentRepository::updateMeta($paymentId, '_paymos_creation_intent', 'pending');
+        return $external;
+    }
+
+    private static function assertCreatedInvoice(array $invoice, $expectedId)
+    {
+        $id = isset($invoice['invoice_id']) && is_string($invoice['invoice_id']) ? $invoice['invoice_id'] : '';
+        $status = isset($invoice['status']) && is_string($invoice['status']) ? $invoice['status'] : '';
+        if ($id === '' || ($expectedId !== '' && $expectedId !== $id)
+            || !in_array($status, array('awaiting_client', 'awaiting_payment', 'confirming', 'underpaid_waiting', 'paid', 'paid_over', 'expired', 'cancelled', 'underpaid'), true)) {
+            throw new \RuntimeException('Paymos invoice response cannot be safely matched to the purchase.');
+        }
+    }
+
+    private static function isPaymentUrlAllowed($url)
+    {
+        $parts = wp_parse_url((string) $url);
+        if (!is_array($parts) || !isset($parts['scheme'], $parts['host'])
+            || strtolower($parts['scheme']) !== 'https' || isset($parts['user']) || isset($parts['pass'])
+            || (isset($parts['port']) && $parts['port'] !== 443)) {
+            return false;
+        }
+        return in_array(strtolower($parts['host']), array('checkout.paymos.io', 'checkout-local.paymos.io'), true);
     }
 
     /**
@@ -299,8 +481,12 @@ final class Gateway
         return '';
     }
 
-    private static function sendBackToCheckout(array $purchaseData)
+    private static function sendBackToCheckout(array $purchaseData, ?WordPressOrderLock $lock = null)
     {
+        // EDD can exit here: finally is not executed by PHP exit.
+        if ($lock !== null) {
+            $lock->release();
+        }
         $gateway = isset($purchaseData['post_data']['edd-gateway']) ? (string) $purchaseData['post_data']['edd-gateway'] : self::ID;
         if (function_exists('edd_send_back_to_checkout')) {
             edd_send_back_to_checkout('?payment-mode=' . rawurlencode($gateway));
@@ -309,6 +495,8 @@ final class Gateway
 
     private static function redirect($url)
     {
+        // The HTTPS checkout host was checked against the configured API origin.
+        // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect -- Hosted checkout intentionally uses a separately validated external host.
         wp_redirect($url);
         if (!defined('PAYMOS_EDD_TESTING')) {
             exit;
@@ -342,7 +530,11 @@ final class Gateway
 
     public static function formatAmount($amount)
     {
-        return number_format((float) $amount, 2, '.', '');
+        $normalized = AmountGuard::normalizeDecimal($amount);
+        if ($normalized === null) {
+            throw new \RuntimeException('Paymos purchase amount is invalid.');
+        }
+        return $normalized;
     }
 
     public static function set_client_factory_for_tests($factory)

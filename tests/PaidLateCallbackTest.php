@@ -27,13 +27,14 @@ function test_edd_paid_late_notes_once_and_changes_nothing()
 {
     paymos_edd_reset_test_state();
     $paymentId = 4242;
+    $GLOBALS['paymos_edd_payments'][$paymentId] = array('id'=>$paymentId, 'status'=>'pending', 'gateway'=>'paymos');
     $GLOBALS['paymos_edd_payment_meta'][$paymentId]['_paymos_last_status'] = 'expired';
 
     (new PaymentMapper())->apply($paymentId, edd_paid_late_event('evt_late_1'));
 
     $notes = $GLOBALS['paymos_edd_payment_notes'][$paymentId] ?? array();
     assertTrueValue(count($notes) === 1, 'paid_late must add exactly one payment note.');
-    assertTrueValue(($GLOBALS['paymos_edd_payments'][$paymentId]['status'] ?? null) === null, 'paid_late must never change the payment status.');
+    assertTrueValue(($GLOBALS['paymos_edd_payments'][$paymentId]['status'] ?? null) === 'pending', 'paid_late must never change the payment status.');
     assertSameValue('evt_late_1', $GLOBALS['paymos_edd_payment_meta'][$paymentId]['_paymos_paid_late_note:inv_late_1'], 'marker records the event id.');
     assertSameValue('expired', $GLOBALS['paymos_edd_payment_meta'][$paymentId]['_paymos_last_status'], 'the recorded final status stays untouched.');
 }
@@ -42,6 +43,7 @@ function test_edd_paid_late_sequential_duplicate_is_silent()
 {
     paymos_edd_reset_test_state();
     $paymentId = 4242;
+    $GLOBALS['paymos_edd_payments'][$paymentId] = array('id'=>$paymentId, 'status'=>'pending', 'gateway'=>'paymos');
     $GLOBALS['paymos_edd_payment_meta'][$paymentId]['_paymos_last_status'] = 'expired';
     $mapper = new PaymentMapper();
 
@@ -50,5 +52,5 @@ function test_edd_paid_late_sequential_duplicate_is_silent()
 
     $notes = $GLOBALS['paymos_edd_payment_notes'][$paymentId] ?? array();
     assertTrueValue(count($notes) === 1, 'a sequential duplicate paid_late must not add a second note.');
-    assertTrueValue(($GLOBALS['paymos_edd_payments'][$paymentId]['status'] ?? null) === null, 'duplicates stay inert.');
+    assertTrueValue(($GLOBALS['paymos_edd_payments'][$paymentId]['status'] ?? null) === 'pending', 'duplicates stay inert.');
 }

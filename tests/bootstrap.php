@@ -133,19 +133,19 @@ function rest_url($path = '') { return 'https://shop.example.com/wp-json/' . ltr
 function get_option($key, $default = false) { return array_key_exists($key, $GLOBALS['paymos_edd_options']) ? $GLOBALS['paymos_edd_options'][$key] : $default; }
 function update_option($key, $value, $autoload = null) { $GLOBALS['paymos_edd_options'][(string) $key] = $value; return true; }
 function wp_salt($scheme = 'auth') { return 'paymos-edd-test-salt-' . (string) $scheme; }
-function update_post_meta($paymentId, $key, $value) { $GLOBALS['paymos_edd_payment_meta'][(int) $paymentId][(string) $key] = $value; return true; }
+function update_post_meta($paymentId, $key, $value) { if (isset($GLOBALS['paymos_edd_fail_meta_key']) && $GLOBALS['paymos_edd_fail_meta_key'] === $key) { return false; } unset($GLOBALS['paymos_edd_meta_cache'][(int) $paymentId]); $GLOBALS['paymos_edd_payment_meta'][(int) $paymentId][(string) $key] = $value; return true; }
 function get_post_meta($paymentId, $key, $single = false) { return isset($GLOBALS['paymos_edd_payment_meta'][(int) $paymentId][(string) $key]) ? $GLOBALS['paymos_edd_payment_meta'][(int) $paymentId][(string) $key] : ''; }
 function edd_get_option($key, $default = '') { $settings = get_option('edd_settings', array()); return is_array($settings) && array_key_exists($key, $settings) ? $settings[$key] : $default; }
-function edd_get_currency() { return 'USD'; }
+function edd_get_currency() { return isset($GLOBALS['paymos_edd_currency']) ? $GLOBALS['paymos_edd_currency'] : 'USD'; }
 function edd_get_errors() { return $GLOBALS['paymos_edd_errors']; }
 function edd_set_error($code, $message) { $GLOBALS['paymos_edd_errors'][(string) $code] = (string) $message; }
-function edd_send_back_to_checkout($query = '') { $GLOBALS['paymos_edd_redirects'][] = 'checkout' . (string) $query; }
+function edd_send_back_to_checkout($query = '') { $GLOBALS['paymos_edd_locks_at_checkout_exit'][] = count($GLOBALS['wpdb']->locks); $GLOBALS['paymos_edd_redirects'][] = 'checkout' . (string) $query; }
 function edd_empty_cart() { $GLOBALS['paymos_edd_cart_empty'] = true; }
-function wp_redirect($url) { $GLOBALS['paymos_edd_redirects'][] = (string) $url; return true; }
+function wp_redirect($url) { $GLOBALS['paymos_edd_locks_at_success_exit'][] = count($GLOBALS['wpdb']->locks); $GLOBALS['paymos_edd_redirects'][] = (string) $url; return true; }
 
 function edd_insert_payment($paymentData)
 {
-    $id = $GLOBALS['paymos_edd_next_payment_id']++;
+    $id = !empty($GLOBALS['paymos_edd_resume_id']) ? $GLOBALS['paymos_edd_resume_id'] : $GLOBALS['paymos_edd_next_payment_id']++;
     $GLOBALS['paymos_edd_payments'][$id] = $paymentData;
     $GLOBALS['paymos_edd_payments'][$id]['id'] = $id;
     $GLOBALS['paymos_edd_payments'][$id]['status'] = isset($paymentData['status']) ? $paymentData['status'] : 'pending';
@@ -153,21 +153,27 @@ function edd_insert_payment($paymentData)
 }
 
 function edd_update_payment_meta($paymentId, $key, $value) { update_post_meta($paymentId, $key, $value); }
-function edd_get_payment_meta($paymentId, $key, $single = true) { return get_post_meta($paymentId, $key, $single); }
+function edd_get_payment_meta($paymentId, $key, $single = true) {
+    if (empty($GLOBALS['paymos_edd_cache_enabled'])) { return get_post_meta($paymentId, $key, $single); }
+    if (!isset($GLOBALS['paymos_edd_meta_cache'][(int) $paymentId])) { $GLOBALS['paymos_edd_meta_cache'][(int) $paymentId] = isset($GLOBALS['paymos_edd_payment_meta'][(int) $paymentId]) ? $GLOBALS['paymos_edd_payment_meta'][(int) $paymentId] : array(); }
+    return isset($GLOBALS['paymos_edd_meta_cache'][(int) $paymentId][$key]) ? $GLOBALS['paymos_edd_meta_cache'][(int) $paymentId][$key] : '';
+}
 // Mirror real EDD: the 'complete' status key is stored as 'publish'.
-function edd_update_payment_status($paymentId, $status) { $status = (string) $status === 'complete' ? 'publish' : (string) $status; $GLOBALS['paymos_edd_payments'][(int) $paymentId]['status'] = $status; }
+function edd_update_payment_status($paymentId, $status) { if (!empty($GLOBALS['paymos_edd_fail_status'])) { return false; } $status = (string) $status === 'complete' ? 'publish' : (string) $status; $GLOBALS['paymos_edd_payments'][(int) $paymentId]['status'] = $status; unset($GLOBALS['paymos_edd_row_cache'][(int) $paymentId]); if ($status === 'publish') { $GLOBALS['paymos_edd_completion_count']++; } return true; }
 // Mirror real EDD: with $label=true the LOCALIZED label is returned, not the key
 // (so a roll-back guard that compares the label is correctly caught by tests).
 function edd_get_payment_status($paymentId, $label = false) {
-    $key = isset($GLOBALS['paymos_edd_payments'][(int) $paymentId]['status']) ? $GLOBALS['paymos_edd_payments'][(int) $paymentId]['status'] : '';
+    $row = paymos_edd_read_native_row($paymentId);
+    $key = isset($row['status']) ? $row['status'] : '';
     if (!$label) { return $key; }
     $labels = array('publish' => 'Завершён', 'complete' => 'Завершён', 'pending' => 'В ожидании', 'failed' => 'Ошибка', 'abandoned' => 'Брошен');
     return isset($labels[$key]) ? $labels[$key] : $key;
 }
-function edd_get_payment_amount($paymentId) { return isset($GLOBALS['paymos_edd_payments'][(int) $paymentId]['price']) ? $GLOBALS['paymos_edd_payments'][(int) $paymentId]['price'] : '0.00'; }
-function edd_get_payment_currency_code($paymentId) { return isset($GLOBALS['paymos_edd_payments'][(int) $paymentId]['currency']) ? $GLOBALS['paymos_edd_payments'][(int) $paymentId]['currency'] : 'USD'; }
+function edd_get_payment_amount($paymentId) { $row = paymos_edd_read_native_row($paymentId); return isset($row['price']) ? $row['price'] : '0.00'; }
+function edd_get_payment_currency_code($paymentId) { $row = paymos_edd_read_native_row($paymentId); return isset($row['currency']) ? $row['currency'] : 'USD'; }
+function edd_get_payment_gateway($paymentId) { $row = paymos_edd_read_native_row($paymentId); return isset($row['gateway']) ? $row['gateway'] : ''; }
 function edd_set_payment_transaction_id($paymentId, $transactionId) { $GLOBALS['paymos_edd_payments'][(int) $paymentId]['transaction_id'] = (string) $transactionId; }
-function edd_insert_payment_note($paymentId, $note) { $GLOBALS['paymos_edd_payment_notes'][(int) $paymentId][] = (string) $note; }
+function edd_insert_payment_note($paymentId, $note) { $GLOBALS['paymos_edd_payment_notes'][(int) $paymentId][] = (string) $note; return 1; }
 
 function get_transient($key) { return isset($GLOBALS['paymos_edd_transients'][(string) $key]) ? $GLOBALS['paymos_edd_transients'][(string) $key] : false; }
 function set_transient($key, $value, $expiration = 0) { $GLOBALS['paymos_edd_transients'][(string) $key] = $value; return true; }
@@ -206,6 +212,18 @@ function paymos_edd_reset_test_state()
     $GLOBALS['paymos_edd_redirects'] = array();
     $GLOBALS['paymos_edd_errors'] = array();
     $GLOBALS['paymos_edd_next_payment_id'] = 100;
+    $GLOBALS['paymos_edd_currency'] = 'USD';
+    $GLOBALS['paymos_edd_cache_enabled'] = false;
+    $GLOBALS['paymos_edd_row_cache'] = array();
+    $GLOBALS['paymos_edd_meta_cache'] = array();
+    $GLOBALS['paymos_edd_cache_deletes'] = array();
+    $GLOBALS['paymos_edd_fail_status'] = false;
+    $GLOBALS['paymos_edd_fail_meta_key'] = null;
+    $GLOBALS['paymos_edd_completion_count'] = 0;
+    $GLOBALS['paymos_edd_resume_id'] = null;
+    $GLOBALS['paymos_edd_locks_at_checkout_exit'] = array();
+    $GLOBALS['paymos_edd_locks_at_success_exit'] = array();
+    $GLOBALS['wpdb'] = new FakeEddWpdb();
     PaymosEasyDigitalDownloads\Config::reset_for_tests();
     PaymosEasyDigitalDownloads\Gateway::set_client_factory_for_tests(null);
     PaymosEasyDigitalDownloads\WebhookController::set_client_factory_for_tests(null);
@@ -265,7 +283,7 @@ function paymos_edd_signed_header($secret, $body, $timestamp = null)
     return 't=' . $timestamp . ',v1=' . hash_hmac('sha256', (string) $timestamp . '.' . (string) $body, (string) $secret);
 }
 
-final class FakePaymosInvoices
+class FakePaymosInvoices
 {
     /** @var array<int, array<string, mixed>> */
     public $payloads = array();
@@ -280,13 +298,14 @@ final class FakePaymosInvoices
     {
         $this->createResponse = $createResponse ?: array(
             'invoice_id' => 'inv_123',
-            'payment_url' => 'https://paymos.test/pay/inv_123',
+            'payment_url' => 'https://checkout.paymos.io/pay/inv_123',
             'status' => 'awaiting_client',
         );
         $this->getResponse = $getResponse ?: array(
             'invoice_id' => 'inv_123',
             'project_id' => 'prj_123',
             'status' => 'paid',
+            'is_test' => true,
             'order' => array(
                 'external_id' => 'edd_100_abc123',
                 // Server trims trailing zeros on the wire ("100.00" -> "100");
@@ -301,6 +320,11 @@ final class FakePaymosInvoices
     {
         $this->payloads[] = $payload;
         return $this->createResponse;
+    }
+
+    public function cancel($invoiceId, $reason)
+    {
+        return array('invoice_id' => $invoiceId, 'status' => 'cancelled');
     }
 
     public function get($invoiceId)
@@ -331,6 +355,7 @@ function paymos_edd_reverse_verify_client(array $invoice = array())
         'invoice_id' => 'inv_123',
         'project_id' => 'prj_123',
         'status' => 'paid',
+        'is_test' => true,
         'order' => array(
             'external_id' => 'edd_100_abc123',
             // Server-trimmed amount ("100"), snapshot is "100.00" — must match.
@@ -346,3 +371,121 @@ function paymos_edd_reverse_verify_client(array $invoice = array())
         ))
     );
 }
+
+
+if (!defined('ARRAY_A')) { define('ARRAY_A', 'ARRAY_A'); }
+function register_deactivation_hook() {}
+function wp_next_scheduled($hook) { return false; }
+function wp_schedule_event($time, $recurrence, $hook) { return true; }
+function wp_clear_scheduled_hook($hook) { $GLOBALS['paymos_edd_cleared_cron'][] = array($GLOBALS['wpdb']->prefix, $hook); return true; }
+
+/** Deterministic durable DB/connection double. SQL branches preserve WHERE ownership predicates. */
+final class FakeEddWpdb
+{
+    public $prefix = 'wp_';
+    public $rows = array();
+    public $locks = array();
+    public $connection = '41';
+    public $fail = false;
+    public $beforeInsert;
+    public $queries = array();
+    public function prepare($query, ...$args) { return serialize(array($query, $args)); }
+    private function unpack($query) { return unserialize($query); }
+    public function get_charset_collate() { return ''; }
+    public function get_var($prepared)
+    {
+        list($sql, $args) = $this->unpack($prepared);
+        if ($this->fail) { return null; }
+        if (strpos($sql, 'GET_LOCK(') !== false) {
+            if (isset($this->locks[$args[0]])) { return '0'; }
+            $this->locks[$args[0]] = $this->connection;
+            return $this->connection;
+        }
+        $owned = $this->connection === (string) $args[0]
+            && isset($this->locks[$args[1]]) && $this->locks[$args[1]] === (string) $args[2];
+        if (strpos($sql, 'RELEASE_LOCK') !== false && $owned) { unset($this->locks[$args[1]]); }
+        return $owned ? '1' : '0';
+    }
+    public function get_row($prepared, $mode = null)
+    {
+        list($sql, $args) = $this->unpack($prepared);
+        if ($this->fail) { return null; }
+        if (strpos($sql, 'SHOW COLUMNS') === 0) { return array('Field' => 'owner_token'); }
+        return isset($this->rows[$args[1]]) ? $this->rows[$args[1]] : null;
+    }
+    public function query($prepared)
+    {
+        list($sql, $a) = $this->unpack($prepared);
+        $this->queries[] = array($sql, $a);
+        if ($this->fail) { return false; }
+        if (strpos($sql, 'DROP TABLE') === 0) { $GLOBALS['paymos_edd_dropped_tables'][] = $a[0]; return 0; }
+        if (strpos($sql, 'CREATE TABLE') === 0 || strpos($sql, 'ALTER TABLE') === 0) { return 0; }
+        if (strpos($sql, 'INSERT IGNORE') === 0) {
+            if ($this->beforeInsert !== null) { $callback = $this->beforeInsert; $this->beforeInsert = null; $callback($this, $a); }
+            if (isset($this->rows[$a[1]])) { return 0; }
+            $this->rows[$a[1]] = array('event_hash'=>$a[1], 'event_id'=>$a[2], 'owner_token'=>$a[3], 'status'=>$a[4], 'expires_at'=>$a[5], 'created_at'=>$a[6], 'updated_at'=>$a[7]);
+            return 1;
+        }
+        if (strpos($sql, 'DELETE FROM') === 0 && strpos($sql, 'LIMIT 100') !== false) {
+            $count = 0;
+            uasort($this->rows, static function ($x, $y) { return $x['expires_at'] <=> $y['expires_at']; });
+            foreach ($this->rows as $hash => $row) { if ($row['expires_at'] <= $a[1] && $count < 100) { unset($this->rows[$hash]); $count++; } }
+            return $count;
+        }
+        if (strpos($sql, 'DELETE FROM') === 0) {
+            if (isset($this->rows[$a[1]]) && $this->rows[$a[1]]['owner_token'] === $a[2] && $this->rows[$a[1]]['status'] === $a[3]) { unset($this->rows[$a[1]]); return 1; }
+            return 0;
+        }
+        if (strpos($sql, 'UPDATE') === 0 && strpos($sql, 'SET owner_token') !== false) {
+            if (!isset($this->rows[$a[5]])) { return 0; }
+            $r = $this->rows[$a[5]];
+            if ($r['owner_token'] !== $a[6] || $r['status'] !== $a[7] || $r['expires_at'] !== $a[8] || $r['expires_at'] > $a[9]) { return 0; }
+            $this->rows[$a[5]] = array_merge($r,array('owner_token'=>$a[1],'status'=>$a[2],'expires_at'=>$a[3],'updated_at'=>$a[4])); return 1;
+        }
+        if (strpos($sql, 'UPDATE') === 0) {
+            if (!isset($this->rows[$a[4]])) { return 0; }
+            $r = $this->rows[$a[4]];
+            if ($r['owner_token'] !== $a[5] || $r['status'] !== $a[6] || $r['expires_at'] <= $a[7]) { return 0; }
+            $this->rows[$a[4]] = array_merge($r,array('status'=>$a[1],'expires_at'=>$a[2],'updated_at'=>$a[3])); return 1;
+        }
+        throw new RuntimeException('Unhandled mock SQL: '.$sql);
+    }
+}
+$GLOBALS['wpdb'] = new FakeEddWpdb();
+
+function is_multisite() { return !empty($GLOBALS['paymos_edd_multisite']); }
+function get_sites($args) { return array_slice(array(1,2), $args['offset'], $args['number']); }
+function switch_to_blog($id) {
+    $GLOBALS['paymos_edd_blogs'][$GLOBALS['paymos_edd_blog_id']] = $GLOBALS['paymos_edd_options'];
+    $GLOBALS['paymos_edd_blog_stack'][] = $GLOBALS['paymos_edd_blog_id'];
+    $GLOBALS['paymos_edd_blog_id'] = $id;
+    $GLOBALS['paymos_edd_options'] = $GLOBALS['paymos_edd_blogs'][$id];
+    $GLOBALS['wpdb']->prefix = $id === 1 ? 'wp_' : 'wp_'.$id.'_';
+}
+function restore_current_blog() {
+    $current = $GLOBALS['paymos_edd_blog_id'];
+    $previous = array_pop($GLOBALS['paymos_edd_blog_stack']);
+    $GLOBALS['paymos_edd_blogs'][$current] = $GLOBALS['paymos_edd_options'];
+    $GLOBALS['paymos_edd_blog_id'] = $previous;
+    $GLOBALS['paymos_edd_options'] = $GLOBALS['paymos_edd_blogs'][$previous];
+    $GLOBALS['wpdb']->prefix = $previous === 1 ? 'wp_' : 'wp_'.$previous.'_';
+}
+
+function EDD() { return (object) array('session'=>new FakeEddSession()); }
+final class FakeEddSession { public function get($key) { return $key === 'edd_resume_payment' ? $GLOBALS['paymos_edd_resume_id'] : null; } }
+
+/** Native persistence and cached row deliberately differ in freshness regressions. */
+function paymos_edd_read_native_row($paymentId) {
+    $id = (int) $paymentId;
+    if (empty($GLOBALS['paymos_edd_cache_enabled'])) { return isset($GLOBALS['paymos_edd_payments'][$id]) ? $GLOBALS['paymos_edd_payments'][$id] : array(); }
+    if (!isset($GLOBALS['paymos_edd_row_cache'][$id])) { $GLOBALS['paymos_edd_row_cache'][$id] = isset($GLOBALS['paymos_edd_payments'][$id]) ? $GLOBALS['paymos_edd_payments'][$id] : array(); }
+    return $GLOBALS['paymos_edd_row_cache'][$id];
+}
+function wp_cache_delete($key, $group = '') {
+    $GLOBALS['paymos_edd_cache_deletes'][] = array($key,$group);
+    if ($group === 'edd-orders') { unset($GLOBALS['paymos_edd_row_cache'][(int) $key]); }
+    if ($group === 'edd_order_meta') { unset($GLOBALS['paymos_edd_meta_cache'][(int) $key]); }
+    return true;
+}
+function clean_post_cache($postId) { $GLOBALS['paymos_edd_cache_deletes'][] = array($postId,'legacy-post'); }
+function wp_parse_url($url, $component = -1) { return parse_url($url, $component); }

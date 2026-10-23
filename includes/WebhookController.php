@@ -12,6 +12,7 @@ use Paymos\Exception\SignatureMismatchException;
 use Paymos\Exception\TimestampSkewException;
 use Paymos\Plugin\InvoiceReverseVerifier;
 use Paymos\Plugin\StatusMapper;
+use Paymos\Plugin\WordPressOrderLock;
 use Paymos\Webhook\MultiEnvironmentWebhookVerifier;
 use Paymos\Webhook\WebhookEvent;
 
@@ -63,6 +64,7 @@ final class WebhookController
             // Not a duplicate: a 2xx would mark it delivered even if that delivery
             // then fails. 409 makes the server retry; the lock is not ours to drop.
             Logger::info('Paymos webhook is still being processed by another delivery.');
+            $eventStore->release();
             return new \WP_REST_Response(array('error' => 'in_progress'), 409);
         } catch (SignatureMismatchException $e) {
             Logger::error('Paymos webhook signature mismatch.');
@@ -70,8 +72,12 @@ final class WebhookController
         } catch (TimestampSkewException $e) {
             Logger::error('Paymos webhook timestamp skew.');
             return new \WP_REST_Response(array('error' => 'bad_timestamp'), 401);
-        } catch (\RuntimeException $e) {
-            $eventStore->release();
+        } catch (\Throwable $e) {
+            try {
+                $eventStore->release();
+            } catch (\Throwable $releaseError) {
+                Logger::error('Paymos event reservation could not be released.');
+            }
             Logger::error('Paymos webhook processing failed: ' . $e->getMessage());
             return new \WP_REST_Response(array('error' => 'processing_failed'), 400);
         }
@@ -86,22 +92,62 @@ final class WebhookController
             throw new \RuntimeException('EDD payment id could not be parsed from Paymos external order id.');
         }
 
-        self::assertPaymentMatchesEvent($paymentId, $event, $environment);
-        self::reverseVerifyTerminalEvent($event, $paymentId, $environment);
-
-        (new PaymentMapper())->apply($paymentId, $event->toArray());
+        $lock = new WordPressOrderLock('paymos-edd', $paymentId);
+        if (!$lock->acquire()) {
+            throw new EventInProgressException('Paymos payment is already being processed.');
+        }
+        try {
+            $lock->assertOwned();
+            PaymentRepository::refresh($paymentId);
+            PaymentRepository::assertPaymosPayment($paymentId);
+            self::assertPaymentMatchesEvent($paymentId, $event, $environment, $lock);
+            self::reverseVerifyTerminalEvent($event, $paymentId, $environment);
+            $lock->assertOwned();
+            (new PaymentMapper())->apply($paymentId, $event->toArray(), $lock);
+        } finally {
+            $lock->release();
+        }
     }
 
-    private static function assertPaymentMatchesEvent($paymentId, WebhookEvent $event, $environment)
+    private static function assertPaymentMatchesEvent($paymentId, WebhookEvent $event, $environment, WordPressOrderLock $lock)
     {
         $paymentEnvironment = PaymentRepository::getMeta($paymentId, '_paymos_environment');
-        if ($paymentEnvironment !== '' && $paymentEnvironment !== (string) $environment) {
+        if ($paymentEnvironment === '' || $paymentEnvironment !== (string) $environment) {
             throw new \RuntimeException('Paymos webhook environment does not match EDD payment environment.');
         }
 
         $paymentProjectId = PaymentRepository::getMeta($paymentId, '_paymos_project_id');
-        if ($paymentProjectId !== '' && $event->projectId() !== '' && $paymentProjectId !== $event->projectId()) {
+        if ($paymentProjectId === '' || $paymentProjectId !== $event->projectId()) {
             throw new \RuntimeException('Paymos webhook project does not match EDD payment project.');
+        }
+        $externalId = PaymentRepository::getMeta($paymentId, '_paymos_external_order_id');
+        if ($externalId === '' || $externalId !== $event->externalOrderId()) {
+            throw new \RuntimeException('Paymos webhook external id does not match EDD payment.');
+        }
+        $invoiceId = PaymentRepository::getMeta($paymentId, '_paymos_invoice_id');
+        if ($invoiceId === '' && PaymentRepository::getMeta($paymentId, '_paymos_creation_intent') === 'pending') {
+            // Recover a lost response using our durable idempotency intent. The
+            // callback's invoice ID is never adopted as independent evidence.
+            $payload = array(
+                'project_id' => $paymentProjectId,
+                'external_order_id' => $externalId,
+                'amount' => PaymentRepository::getMeta($paymentId, '_paymos_invoice_amount'),
+                'currency' => PaymentRepository::getMeta($paymentId, '_paymos_invoice_currency'),
+            );
+            $clientId = PaymentRepository::getMeta($paymentId, '_paymos_client_id');
+            if ($clientId !== '') {
+                $payload['client_id'] = $clientId;
+            }
+            $invoice = self::client($environment)->invoices()->create($payload);
+            $invoiceId = isset($invoice['invoice_id']) && is_string($invoice['invoice_id']) ? $invoice['invoice_id'] : '';
+            $lock->assertOwned();
+            if ($invoiceId !== '' && $invoiceId === $event->invoiceId()) {
+                PaymentRepository::updateMeta($paymentId, '_paymos_invoice_id', $invoiceId);
+                PaymentRepository::updateMeta($paymentId, '_paymos_creation_intent', 'bound');
+            }
+        }
+        if ($invoiceId === '' || $invoiceId !== $event->invoiceId()) {
+            throw new \RuntimeException('Paymos webhook invoice does not match EDD payment.');
         }
     }
 
@@ -128,13 +174,16 @@ final class WebhookController
         }
 
         $result = (new InvoiceReverseVerifier(self::client($environment)))->verify($event, array(
+            'invoice_id' => PaymentRepository::getMeta($paymentId, '_paymos_invoice_id'),
             'project_id' => PaymentRepository::getMeta($paymentId, '_paymos_project_id'),
-            'external_order_id' => $event->externalOrderId(),
+            'external_order_id' => PaymentRepository::getMeta($paymentId, '_paymos_external_order_id'),
             'amount' => PaymentRepository::getMeta($paymentId, '_paymos_invoice_amount'),
             'currency' => PaymentRepository::getMeta($paymentId, '_paymos_invoice_currency'),
+            'environment' => (string) $environment,
         ));
 
         if (!$result->isVerified()) {
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Diagnostic reason is caught and logged, never rendered as HTML.
             throw new \RuntimeException('Paymos reverse invoice verification failed: ' . $result->reason());
         }
     }
@@ -146,6 +195,7 @@ final class WebhookController
             StatusMapper::ACTION_PAYMENT_COMPLETE,
             StatusMapper::ACTION_FAIL_ORDER,
             StatusMapper::ACTION_CANCEL_ORDER,
+            StatusMapper::ACTION_NOTE_PAID_LATE,
         ), true);
     }
 
@@ -158,6 +208,7 @@ final class WebhookController
         $config = Config::environment_config($environment);
         foreach (array('api_key', 'api_secret', 'base_url') as $required) {
             if (!isset($config[$required]) || !is_scalar($config[$required]) || trim((string) $config[$required]) === '') {
+                // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Diagnostic exception is caught and logged, never rendered as HTML.
                 throw new \RuntimeException('Paymos connected credentials are missing ' . $required . ' for ' . (string) $environment . '.');
             }
         }
