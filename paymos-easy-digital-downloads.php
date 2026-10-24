@@ -3,14 +3,13 @@
  * Plugin Name: Paymos for Easy Digital Downloads
  * Plugin URI: https://paymos.io/docs/cms-easy-digital-downloads
  * Description: Accept stablecoin payments in Easy Digital Downloads through Paymos.
- * Version: 1.4.3
+ * Version: 1.4.4
  * Author: Paymos
  * Author URI: https://paymos.io
  * License: GPL-2.0-or-later
  * Text Domain: paymos-easy-digital-downloads
  * Domain Path: /languages
  * Requires at least: 6.5
- * Tested up to: 7.1
  * Requires PHP: 7.4
  * Requires Plugins: easy-digital-downloads
  */
@@ -19,7 +18,7 @@ defined('ABSPATH') || exit;
 
 define('PAYMOS_EDD_PLUGIN_FILE', __FILE__);
 define('PAYMOS_EDD_PLUGIN_DIR', plugin_dir_path(__FILE__));
-define('PAYMOS_EDD_PLUGIN_VERSION', '1.4.3');
+define('PAYMOS_EDD_PLUGIN_VERSION', '1.4.4');
 
 require_once PAYMOS_EDD_PLUGIN_DIR . 'includes/Autoloader.php';
 
