@@ -61,7 +61,7 @@ later Merchant API call is HMAC-signed.
 | Mode | Sandbox |
 | Webhook URL | Read-only; registered for you at connect |
 | Connection status | Read-only |
-| Debug logging | Off — writes redacted lines to PHP `error_log` |
+| Debug logging | Off by default; writes Paymos messages to the EDD debug log when enabled. |
 
 There is no field for a secret and no project picker; both are provisioned by the approval.
 

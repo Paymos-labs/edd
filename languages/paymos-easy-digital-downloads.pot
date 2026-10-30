@@ -102,7 +102,7 @@ msgid "Debug logging"
 msgstr ""
 
 #: includes/Gateway.php:128
-msgid "Write redacted Paymos logs to PHP error_log."
+msgid "Off by default. Enable to write Paymos messages to Downloads > Tools > Debug Log."
 msgstr ""
 
 #: includes/Gateway.php:163

@@ -1,0 +1,15 @@
+{
+  "name": "paymos/paymos-easy-digital-downloads",
+  "description": "Accept stablecoin payments in Easy Digital Downloads through Paymos.",
+  "type": "wordpress-plugin",
+  "license": "GPL-2.0-or-later",
+  "require": {
+    "php": ">=7.4",
+    "paymos/php-sdk": "^1.6.2"
+  },
+  "autoload": {
+    "psr-4": {
+      "PaymosEasyDigitalDownloads\\": "includes/"
+    }
+  }
+}

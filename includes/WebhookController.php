@@ -32,7 +32,7 @@ final class WebhookController
         ));
     }
 
-    public static function handle(\WP_REST_Request $request)
+    public static function handle(\WP_REST_Request $request, ?RefundAdapter $refunds = null)
     {
         $secrets = Config::webhook_secrets();
         if (count($secrets) === 0) {
@@ -47,6 +47,12 @@ final class WebhookController
                 ->process($request->get_header('x-webhook-signature'), $request->get_body());
             $environment = $verified->environment();
             $event = $verified->event();
+
+            if (strpos($event->type(), 'withdrawal.') === 0 && ($event->toArray()['data']['type'] ?? '') === 'refund') {
+                ($refunds ?: new RefundAdapter())->callback($event->toArray()['data'], $environment);
+                $eventStore->commit();
+                return new \WP_REST_Response(array('ok' => true), 200);
+            }
 
             if (!$event->isInvoiceEvent()) {
                 $eventStore->commit();

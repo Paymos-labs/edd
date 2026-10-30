@@ -21,6 +21,29 @@ final class Gateway
     /** @var callable|null */
     private static $clientFactory;
 
+    public static function refund_input(int $orderId, array $input): array
+    {
+        if (!class_exists('EDD\\Orders\\Refunds\\FormParser') || !class_exists('EDD\\Orders\\Refunds\\Validator')
+            || !\EDD\Orders\Refunds\FormParser::verify_nonce($input)
+            || !isset($input['refund_order_item']) || !is_array($input['refund_order_item'])) {
+            throw new \RuntimeException('refund_native_form_invalid');
+        }
+        $order = edd_get_order($orderId);
+        if (!$order || $order->gateway !== self::ID || $order->type !== 'sale') {
+            throw new \RuntimeException('refund_payment_mapping_invalid');
+        }
+        $items = \EDD\Orders\Refunds\FormParser::parse_order_items($input);
+        $adjustments = \EDD\Orders\Refunds\FormParser::parse_adjustments($input);
+        if (PaymentRepository::isComplete($orderId) && count(edd_get_order_refunds($orderId)) === 0) {
+            $validator = new \EDD\Orders\Refunds\Validator($order, $items, $adjustments);
+            $validator->validate_and_calculate_totals();
+            if (!AmountGuard::amountsEqual((string) $validator->total, (string) $order->total)) {
+                throw new \RuntimeException('refund_partial_draft_rejected');
+            }
+        }
+        return $input;
+    }
+
     /**
      * @param array<string, mixed> $gateways
      * @return array<string, mixed>
@@ -129,7 +152,7 @@ final class Gateway
             'paymos_debug_logging' => array(
                 'id' => 'paymos_debug_logging',
                 'name' => __('Debug logging', 'paymos-easy-digital-downloads'),
-                'desc' => __('Write redacted Paymos logs to PHP error_log.', 'paymos-easy-digital-downloads'),
+                'desc' => __('Off by default. Enable to write Paymos messages to Downloads > Tools > Debug Log.', 'paymos-easy-digital-downloads'),
                 'type' => 'checkbox',
             ),
         );

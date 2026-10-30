@@ -100,8 +100,8 @@ msgid "Debug logging"
 msgstr "Hata ayıklama günlüğü"
 
 #: includes/Gateway.php:128
-msgid "Write redacted Paymos logs to PHP error_log."
-msgstr "Kırpılmış Paymos günlüklerini PHP error_log dosyasına yazın."
+msgid "Off by default. Enable to write Paymos messages to Downloads > Tools > Debug Log."
+msgstr "Varsayılan olarak kapalıdır. Paymos mesajlarını Downloads > Tools > Debug Log bölümüne kaydetmek için açın."
 
 #: includes/Gateway.php:163
 msgid "Paymos payment error: payment could not be recorded."

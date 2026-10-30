@@ -48,12 +48,15 @@ foreach ($_files as $_file) {
 }
 unset($_srcRoot, $_iter, $_files, $_file, $_rel, $_f, $_predefined);
 require __DIR__ . '/ConfigTest.php';
+require __DIR__ . '/LoggerTest.php';
 require __DIR__ . '/CredentialStoreTest.php';
 require __DIR__ . '/GatewayTest.php';
 require __DIR__ . '/PaymentMapperTest.php';
 require __DIR__ . '/PaidLateCallbackTest.php';
 require __DIR__ . '/WebhookControllerTest.php';
 require __DIR__ . '/PaymentSafetyTest.php';
+require __DIR__ . '/RefundGuardTest.php';
+require __DIR__ . '/RefundAdapterTest.php';
 
 $tests = array_filter(get_defined_functions()['user'], static function ($name) {
     return strpos($name, 'test_edd_') === 0;

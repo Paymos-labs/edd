@@ -67,8 +67,8 @@ msgstr "Verbindungsstatus"
 msgid "Debug logging"
 msgstr "Diagnoseprotokoll"
 
-msgid "Write redacted Paymos logs to PHP error_log."
-msgstr "Schreibt bereinigte Paymos-Protokolle in das PHP-error_log."
+msgid "Off by default. Enable to write Paymos messages to Downloads > Tools > Debug Log."
+msgstr "Standardmäßig aus. Aktivieren Sie die Option, um Paymos-Meldungen unter Downloads > Tools > Debug Log zu speichern."
 
 msgid "Paymos payment error: payment could not be recorded."
 msgstr "Paymos-Zahlungsfehler: Die Zahlung konnte nicht erfasst werden."

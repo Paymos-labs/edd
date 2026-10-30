@@ -107,10 +107,32 @@ function esc_html($text) { return htmlspecialchars((string) $text, ENT_QUOTES, '
 function wp_kses_post($text) { return (string) $text; }
 function wp_json_encode($value) { return json_encode($value); }
 if (!function_exists('add_action')) {
-    function add_action($hook, $callback, $priority = 10, $acceptedArgs = 1) { return true; }
+    function add_action($hook, $callback, $priority = 10, $acceptedArgs = 1) { return add_filter($hook, $callback, $priority, $acceptedArgs); }
 }
 if (!function_exists('add_filter')) {
-    function add_filter($hook, $callback, $priority = 10, $acceptedArgs = 1) { return true; }
+    function add_filter($hook, $callback, $priority = 10, $acceptedArgs = 1) {
+        $GLOBALS['paymos_edd_hooks'][$hook][$priority][] = array($callback, $acceptedArgs);
+        return true;
+    }
+}
+function apply_filters($hook, $value, ...$args) {
+    $callbacks = isset($GLOBALS['paymos_edd_hooks'][$hook]) ? $GLOBALS['paymos_edd_hooks'][$hook] : array();
+    ksort($callbacks);
+    foreach ($callbacks as $priority) {
+        foreach ($priority as $callback) {
+            $value = call_user_func_array($callback[0], array_slice(array_merge(array($value), $args), 0, $callback[1]));
+        }
+    }
+    return $value;
+}
+function do_action($hook, ...$args) {
+    $callbacks = isset($GLOBALS['paymos_edd_hooks'][$hook]) ? $GLOBALS['paymos_edd_hooks'][$hook] : array();
+    ksort($callbacks);
+    foreach ($callbacks as $priority) {
+        foreach ($priority as $callback) {
+            call_user_func_array($callback[0], array_slice($args, 0, $callback[1]));
+        }
+    }
 }
 if (!function_exists('plugin_basename')) {
     function plugin_basename($file) { return basename(dirname($file)) . '/' . basename($file); }
@@ -159,7 +181,7 @@ function edd_get_payment_meta($paymentId, $key, $single = true) {
     return isset($GLOBALS['paymos_edd_meta_cache'][(int) $paymentId][$key]) ? $GLOBALS['paymos_edd_meta_cache'][(int) $paymentId][$key] : '';
 }
 // Mirror real EDD: the 'complete' status key is stored as 'publish'.
-function edd_update_payment_status($paymentId, $status) { if (!empty($GLOBALS['paymos_edd_fail_status'])) { return false; } $status = (string) $status === 'complete' ? 'publish' : (string) $status; $GLOBALS['paymos_edd_payments'][(int) $paymentId]['status'] = $status; unset($GLOBALS['paymos_edd_row_cache'][(int) $paymentId]); if ($status === 'publish') { $GLOBALS['paymos_edd_completion_count']++; } return true; }
+function edd_update_payment_status($paymentId, $status) { return edd_update_order_status($paymentId, $status); }
 // Mirror real EDD: with $label=true the LOCALIZED label is returned, not the key
 // (so a roll-back guard that compares the label is correctly caught by tests).
 function edd_get_payment_status($paymentId, $label = false) {
@@ -173,7 +195,7 @@ function edd_get_payment_amount($paymentId) { $row = paymos_edd_read_native_row(
 function edd_get_payment_currency_code($paymentId) { $row = paymos_edd_read_native_row($paymentId); return isset($row['currency']) ? $row['currency'] : 'USD'; }
 function edd_get_payment_gateway($paymentId) { $row = paymos_edd_read_native_row($paymentId); return isset($row['gateway']) ? $row['gateway'] : ''; }
 function edd_set_payment_transaction_id($paymentId, $transactionId) { $GLOBALS['paymos_edd_payments'][(int) $paymentId]['transaction_id'] = (string) $transactionId; }
-function edd_insert_payment_note($paymentId, $note) { $GLOBALS['paymos_edd_payment_notes'][(int) $paymentId][] = (string) $note; return 1; }
+function edd_insert_payment_note($paymentId, $note) { $GLOBALS['paymos_edd_payment_notes'][(int) $paymentId][] = (string) $note; $id = count($GLOBALS['paymos_edd_native_notes'] ?? array()) + 1; $GLOBALS['paymos_edd_native_notes'][$id] = (object) array('id' => $id, 'object_id' => (int) $paymentId, 'object_type' => 'order', 'content' => (string) $note); return $id; }
 
 function get_transient($key) { return isset($GLOBALS['paymos_edd_transients'][(string) $key]) ? $GLOBALS['paymos_edd_transients'][(string) $key] : false; }
 function set_transient($key, $value, $expiration = 0) { $GLOBALS['paymos_edd_transients'][(string) $key] = $value; return true; }
@@ -223,6 +245,9 @@ function paymos_edd_reset_test_state()
     $GLOBALS['paymos_edd_resume_id'] = null;
     $GLOBALS['paymos_edd_locks_at_checkout_exit'] = array();
     $GLOBALS['paymos_edd_locks_at_success_exit'] = array();
+    $GLOBALS['paymos_edd_native_refund_writes'] = array();
+    $GLOBALS['paymos_edd_native_notes'] = array();
+    $GLOBALS['paymos_edd_refund_form_result'] = null;
     $GLOBALS['wpdb'] = new FakeEddWpdb();
     PaymosEasyDigitalDownloads\Config::reset_for_tests();
     PaymosEasyDigitalDownloads\Gateway::set_client_factory_for_tests(null);
@@ -489,3 +514,5 @@ function wp_cache_delete($key, $group = '') {
 }
 function clean_post_cache($postId) { $GLOBALS['paymos_edd_cache_deletes'][] = array($postId,'legacy-post'); }
 function wp_parse_url($url, $component = -1) { return parse_url($url, $component); }
+
+require __DIR__ . '/fixtures/edd-refunds.php';

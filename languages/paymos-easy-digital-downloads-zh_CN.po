@@ -104,8 +104,8 @@ msgid "Debug logging"
 msgstr "调试日志"
 
 #: includes/Gateway.php:128
-msgid "Write redacted Paymos logs to PHP error_log."
-msgstr "将脱敏后的 Paymos 日志写入 PHP error_log。"
+msgid "Off by default. Enable to write Paymos messages to Downloads > Tools > Debug Log."
+msgstr "默认关闭。开启后，Paymos 消息会写入 Downloads > Tools > Debug Log。"
 
 #: includes/Gateway.php:163
 msgid "Paymos payment error: payment could not be recorded."
