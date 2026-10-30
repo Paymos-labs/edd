@@ -25,12 +25,18 @@ final class Logger
             return;
         }
 
+        if (!function_exists('edd_debug_log')) {
+            return;
+        }
+
         $line = '[Paymos EDD][' . $level . '] ' . self::redact($message);
         if (count($context) > 0) {
             $line .= ' ' . wp_json_encode(self::redactContext($context));
         }
 
-        error_log($line);
+        // The merchant explicitly enabled Paymos diagnostics. Keep that opt-in
+        // independent of EDD's global debug switch, using its managed log sink.
+        edd_debug_log($line, true);
     }
 
     private static function redact($value)

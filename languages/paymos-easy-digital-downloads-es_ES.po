@@ -67,8 +67,8 @@ msgstr "Estado de la conexión"
 msgid "Debug logging"
 msgstr "Registro de diagnóstico"
 
-msgid "Write redacted Paymos logs to PHP error_log."
-msgstr "Escribe registros de Paymos depurados en el error_log de PHP."
+msgid "Off by default. Enable to write Paymos messages to Downloads > Tools > Debug Log."
+msgstr "Desactivado por defecto. Actívalo para guardar mensajes de Paymos en Downloads > Tools > Debug Log."
 
 msgid "Paymos payment error: payment could not be recorded."
 msgstr "Error de pago de Paymos: no se pudo registrar el pago."

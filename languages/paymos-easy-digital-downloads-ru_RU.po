@@ -63,8 +63,8 @@ msgid "Debug logging"
 msgstr "Журнал отладки"
 
 #: includes/Gateway.php:128
-msgid "Write redacted Paymos logs to PHP error_log."
-msgstr "Писать обезличенные логи Paymos в PHP error_log."
+msgid "Off by default. Enable to write Paymos messages to Downloads > Tools > Debug Log."
+msgstr "По умолчанию выключено. Включите, чтобы записывать сообщения Paymos в Downloads > Tools > Debug Log."
 
 #: includes/Gateway.php:163
 msgid "Paymos payment error: payment could not be recorded."
