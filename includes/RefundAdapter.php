@@ -126,7 +126,7 @@ final class RefundAdapter implements NativeRefundProjectorInterface
                 'project_id' => $this->meta($order, '_paymos_project_id'), 'environment' => $this->environment($order),
                 'mode' => $mode, 'full_draft' => $draft,
             ));
-            if (($reason = $this->preflight($intent)) !== null) { throw new \RuntimeException($reason); }
+            if (($reason = $this->preflight($intent)) !== null) { throw new \RuntimeException(esc_html($reason)); }
             $intent = $this->store->createIntent($intent); // Commits before coordinator HTTP.
             $this->coordinator($intent)->submit($intent->operationId());
             $this->reconcile($intent->operationId());
@@ -657,22 +657,42 @@ final class RefundAdapter implements NativeRefundProjectorInterface
 
     public static function nativeAjax(?self $adapter = null)
     {
-        $id = isset($_POST['order_id']) ? (int) $_POST['order_id'] : 0;
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Preserve exact native monetary fields; EDD FormParser/Validator and the immutable full draft validate them before any provider request.
+        $post = wp_unslash($_POST);
+        $id = isset($post['order_id']) && is_scalar($post['order_id']) ? (int) $post['order_id'] : 0;
         if ($id < 1 || edd_get_payment_gateway($id) !== Gateway::ID) { return; }
-        // Without our durable token, leave the existing native refusal guard in charge.
-        if (!isset($_POST['paymos_refund_token']) || !is_string($_POST['paymos_refund_token'])) { return; }
-        self::ajax($id, RefundStates::FULL, true, $adapter);
+        // Other gateways and native requests without our durable token retain their core handler.
+        if (!isset($post['paymos_refund_token']) || !is_string($post['paymos_refund_token'])) { return; }
+        $input = array();
+        parse_str(isset($post['data']) && is_string($post['data']) ? $post['data'] : '', $input);
+        $nonce = isset($input['edd_process_refund']) && is_string($input['edd_process_refund']) ? $input['edd_process_refund'] : '';
+        if (!current_user_can('edit_shop_payments') || !wp_verify_nonce($nonce, 'edd_process_refund')) {
+            wp_send_json_error(array('message' => RefundCopy::text('unavailable')), 403); return;
+        }
+        $token = sanitize_text_field($post['paymos_refund_token']);
+        if ($token !== $post['paymos_refund_token']) { $token = ''; }
+        self::ajax($id, RefundStates::FULL, true, $adapter, $input, $token);
     }
+
     public static function managedAjax(?self $adapter = null)
     {
-        $mode = isset($_POST['mode']) && is_string($_POST['mode']) ? $_POST['mode'] : '';
-        self::ajax(isset($_POST['order_id']) ? (int) $_POST['order_id'] : 0, $mode, false, $adapter);
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Keep unexpected amount/address fields intact so mode-only validation rejects them; scalar control fields are normalized below.
+        $input = wp_unslash($_POST);
+        $id = isset($input['order_id']) && is_scalar($input['order_id']) ? (int) $input['order_id'] : 0;
+        $nonce = isset($input['security']) && is_string($input['security']) ? $input['security'] : '';
+        if (!current_user_can('edit_shop_payments') || !wp_verify_nonce($nonce, 'paymos_edd_refund_' . $id)) {
+            wp_send_json_error(array('message' => RefundCopy::text('unavailable')), 403); return;
+        }
+        $mode = isset($input['mode']) && is_string($input['mode']) ? sanitize_key($input['mode']) : '';
+        if ($mode !== ($input['mode'] ?? null)) { $mode = ''; }
+        $token = isset($input['paymos_refund_token']) && is_string($input['paymos_refund_token']) ? sanitize_text_field($input['paymos_refund_token']) : '';
+        if ($token !== ($input['paymos_refund_token'] ?? null)) { $token = ''; }
+        self::ajax($id, $mode, false, $adapter, $input, $token);
     }
-    private static function ajax(int $id, string $mode, bool $native, ?self $adapter = null): void
+
+    private static function ajax(int $id, string $mode, bool $native, ?self $adapter, array $input, string $token): void
     {
-        $input = $_POST;
-        if ($native) { parse_str(isset($_POST['data']) && is_string($_POST['data']) ? wp_unslash($_POST['data']) : '', $input); }
-        $nonce = $native ? ($input['edd_process_refund'] ?? '') : ($_POST['security'] ?? '');
+        $nonce = $native ? ($input['edd_process_refund'] ?? '') : ($input['security'] ?? '');
         if (!current_user_can('edit_shop_payments')
             || !wp_verify_nonce($nonce, $native ? 'edd_process_refund' : 'paymos_edd_refund_' . $id)) {
             wp_send_json_error(array('message' => RefundCopy::text('unavailable')), 403); return;
@@ -681,7 +701,6 @@ final class RefundAdapter implements NativeRefundProjectorInterface
             if ($native) { $input = Gateway::refund_input($id, $input); }
             $adapter = $adapter ?: new self();
             if ($mode === 'summary') { wp_send_json_success($adapter->summary((string) $id)); return; }
-            $token = isset($_POST['paymos_refund_token']) && is_string($_POST['paymos_refund_token']) ? $_POST['paymos_refund_token'] : '';
             $intent = $adapter->request((string) $id, $mode, $token, $input);
             if ($native) { wp_send_json_error(array('message' => RefundCopy::message($adapter->view($intent)), 'paymos_refund' => $adapter->view($intent))); return; }
             wp_send_json_success(array('paymos_refund' => $adapter->view($intent)));

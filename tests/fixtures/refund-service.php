@@ -64,6 +64,8 @@ namespace {
     function current_user_can($capability) { return $GLOBALS['paymos_edd_refund_permission'] ?? true; }
     function wp_verify_nonce($nonce, $action) { return $nonce === 'test-nonce'; }
     function wp_unslash($value) { return $value; }
+    function sanitize_key($value) { return preg_replace('/[^a-z0-9_-]/', '', strtolower((string) $value)); }
+    function sanitize_text_field($value) { return trim(strip_tags((string) $value)); }
     function wp_send_json_error($data, $status = null) { $GLOBALS['paymos_edd_refund_json'] = array('success' => false, 'data' => $data, 'status' => $status); }
     function wp_send_json_success($data, $status = null) { $GLOBALS['paymos_edd_refund_json'] = array('success' => true, 'data' => $data, 'status' => $status); }
     function edd_add_order_transaction($data)
@@ -291,6 +293,10 @@ namespace {
         public function esc_like($value) { return addcslashes($value, '_%\\'); }
         public function query($sql)
         {
+            if (strpos($sql, 'a:2:') === 0) {
+                list($template, $arguments) = unserialize($sql);
+                if (strpos($template, 'CREATE TABLE') === 0) { $sql = str_replace('%i', '`' . $arguments[0] . '`', $template); }
+            }
             $this->queries[] = $sql;
             if ($this->failObservations && strpos($sql, 'CREATE TABLE') === 0 && strpos($sql, 'refund_observations') !== false) { return false; }
             if ($sql === 'START TRANSACTION') { $this->snapshots[] = $this->rows; }
