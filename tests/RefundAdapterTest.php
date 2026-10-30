@@ -453,3 +453,38 @@ function test_edd_refund_duplicate_native_mapping_or_changed_environment_is_reje
         assertSameValue(array(), $store->intents, 'No durable cash intent can target an ambiguous native payment.');
     }
 }
+
+function test_edd_refund_control_normalization_cannot_launder_invalid_mode_or_token()
+{
+    $original = $_POST;
+    try {
+        foreach (array(array('mode' => 'FULL'), array('mode' => 'full<script>'), array('mode' => array('full')),
+            array('paymos_refund_token' => 'valid_token_123456<script>'), array('paymos_refund_token' => array('valid_token_123456'))) as $change) {
+            list($adapter, $store, $transport) = edd_refund_harness();
+            $_POST = array_replace(array('order_id' => 100, 'mode' => 'overpayment', 'security' => 'test-nonce',
+                'paymos_refund_token' => 'control_valid_token1'), $change);
+            PaymosEasyDigitalDownloads\RefundAdapter::managedAjax($adapter);
+            assertSameValue(array(), $transport->requests, 'Malformed controls cannot become a valid new cash request after sanitization.');
+            assertSameValue(array(), $store->intents, 'Malformed controls do not create a durable intent.');
+            assertSameValue(false, $GLOBALS['paymos_edd_refund_json']['success'], 'Invalid controls are rejected explicitly.');
+        }
+    } finally { $_POST = $original; }
+}
+
+function test_edd_refund_native_encoded_form_preserves_the_wire_and_native_full_draft()
+{
+    $original = $_POST;
+    try {
+        list($adapter, $store, $transport) = edd_refund_harness();
+        $_POST = paymos_edd_refund_form_post('100');
+        $_POST['paymos_refund_token'] = 'encoded_form_token_01';
+        $before = $_POST;
+        assertContainsValue('%5B', $_POST['data'], 'The test uses real encoded nested form keys.');
+        PaymosEasyDigitalDownloads\RefundAdapter::nativeAjax($adapter);
+        assertSameValue($before, $_POST, 'Transport decoding cannot rewrite the core native form or durable token.');
+        assertSameValue(1, count(edd_refund_posts($transport)), 'The exact valid full native form is still accepted once.');
+        $intent = reset($store->intents);
+        assertSameValue('100', $intent['full_draft']['amount_decimal'], 'The server-owned native total is not rounded or sanitized into another amount.');
+        assertSameValue(0, count(edd_get_order_refunds(100)), 'Pending crypto cash never becomes a premature native refund.');
+    } finally { $_POST = $original; }
+}

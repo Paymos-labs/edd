@@ -70,7 +70,8 @@ class RefundIntentStore implements RefundIntentStoreInterface
         }
         $table = self::tableName();
         $collate = $wpdb->get_charset_collate();
-        $sql = "CREATE TABLE IF NOT EXISTS {$table} (
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange -- Idempotent creation of custom durable refund tables is required before transactional recovery.
+        if ($wpdb->query($wpdb->prepare("CREATE TABLE IF NOT EXISTS %i (
             operation_id varchar(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
             installation_id varchar(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
             request_token varchar(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
@@ -82,18 +83,19 @@ class RefundIntentStore implements RefundIntentStoreInterface
             PRIMARY KEY (operation_id), UNIQUE KEY request_token (installation_id,request_token),
             UNIQUE KEY external_order_id (external_order_id), UNIQUE KEY withdrawal_id (withdrawal_id),
             KEY payment_key (native_payment_key), KEY due (next_check,operation_id)
-        ) ENGINE=InnoDB {$collate};";
-        if ($wpdb->query($sql) === false) {
+        ) ENGINE=InnoDB {$collate};", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Trusted get_charset_collate() core fragment; identifier uses %i.
+            $table)) === false) {
             throw new \RuntimeException('refund_schema_unavailable');
         }
         $observations = $wpdb->prefix . 'paymos_edd_refund_observations';
-        if ($wpdb->query("CREATE TABLE IF NOT EXISTS {$observations} (
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange -- Custom durable refund state requires authoritative SQL under the existing transaction/ownership fences; object caching could replay stale financial state.
+        if ($wpdb->query($wpdb->prepare("CREATE TABLE IF NOT EXISTS %i (
             withdrawal_id varchar(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
             native_payment_key varchar(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
             payload longtext NOT NULL, version bigint unsigned NOT NULL DEFAULT 1,
             next_check bigint unsigned NOT NULL,
             PRIMARY KEY (withdrawal_id), KEY due (next_check,withdrawal_id), KEY payment_key (native_payment_key)
-        ) ENGINE=InnoDB {$collate};") === false) { throw new \RuntimeException('refund_schema_unavailable'); }
+        ) ENGINE=InnoDB {$collate};", $observations)) === false) { throw new \RuntimeException('refund_schema_unavailable'); } // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- get_charset_collate() is trusted core SQL; the table identifier uses %i.
         update_option(self::SCHEMA_OPTION, '1', false);
     }
 
@@ -149,12 +151,14 @@ class RefundIntentStore implements RefundIntentStoreInterface
             'edd_order_adjustments', 'edd_order_adjustmentmeta', 'edd_notes',
             'paymos_edd_refund_intents', 'paymos_edd_refund_observations');
         foreach ($names as $name) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Custom durable refund state requires authoritative SQL under the existing transaction/ownership fences; object caching could replay stale financial state.
             $row = $wpdb->get_row($wpdb->prepare('SHOW TABLE STATUS WHERE Name = %s', $wpdb->prefix . $name), ARRAY_A);
             if (!is_array($row) || !isset($row['Engine']) || strcasecmp($row['Engine'], 'InnoDB') !== 0) {
                 throw new \RuntimeException('refund_transactional_tables_required');
             }
         }
         // EDD extension core tables can participate in stock/earnings adjustments.
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Custom durable refund state requires authoritative SQL under the existing transaction/ownership fences; object caching could replay stale financial state.
         $rows = $wpdb->get_results($wpdb->prepare('SHOW TABLE STATUS WHERE Name LIKE %s', $wpdb->esc_like($wpdb->prefix . 'edd_') . '%'), ARRAY_A);
         if (!is_array($rows) || $wpdb->last_error !== '') { throw new \RuntimeException('refund_transactional_tables_required'); }
         foreach ($rows as $row) {
@@ -172,6 +176,7 @@ class RefundIntentStore implements RefundIntentStoreInterface
             return $action();
         }
         $this->assertTransactionalTables();
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Custom durable refund state requires authoritative SQL under the existing transaction/ownership fences; object caching could replay stale financial state.
         if ($wpdb->query('START TRANSACTION') === false || $wpdb->last_error !== '') {
             throw new \RuntimeException('refund_transaction_start_failed');
         }
@@ -179,12 +184,14 @@ class RefundIntentStore implements RefundIntentStoreInterface
         try {
             $result = $action();
             $this->assertOwned();
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Custom durable refund state requires authoritative SQL under the existing transaction/ownership fences; object caching could replay stale financial state.
             if ($wpdb->query('COMMIT') === false || $wpdb->last_error !== '') {
                 throw new \RuntimeException('refund_transaction_commit_unknown');
             }
             $this->assertOwned();
             return $result;
         } catch (\Throwable $error) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Custom durable refund state requires authoritative SQL under the existing transaction/ownership fences; object caching could replay stale financial state.
             $wpdb->query('ROLLBACK');
             throw $error;
         } finally {
@@ -239,6 +246,7 @@ class RefundIntentStore implements RefundIntentStoreInterface
             $data['created_at'] = $now;
             $data['checks'] = 0;
             $data['version'] = 1;
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Custom durable refund state requires authoritative SQL under the existing transaction/ownership fences; object caching could replay stale financial state.
             $inserted = $wpdb->insert(self::tableName(), array(
                 'operation_id' => $intent->operationId(), 'installation_id' => $data['installation_id'],
                 'request_token' => $data['request_token'], 'external_order_id' => $intent->externalOrderId(),
@@ -255,7 +263,8 @@ class RefundIntentStore implements RefundIntentStoreInterface
     public function findByRequestToken(string $installationId, string $token): ?RefundIntent
     {
         global $wpdb;
-        return $this->row($wpdb->prepare('SELECT payload FROM %i WHERE installation_id = %s AND request_token = %s', self::tableName(), $installationId, $token));
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Authoritative custom refund reads participate in transaction/CAS recovery and must not use stale object-cache data.
+        return $this->row($wpdb->get_row($wpdb->prepare('SELECT payload FROM %i WHERE installation_id = %s AND request_token = %s', self::tableName(), $installationId, $token), ARRAY_A));
     }
 
     public function getIntent(string $operationId): RefundIntent
@@ -271,7 +280,8 @@ class RefundIntentStore implements RefundIntentStoreInterface
     public function forPayment(string $paymentKey): array
     {
         global $wpdb;
-        return $this->rows($wpdb->prepare('SELECT payload FROM %i WHERE native_payment_key = %s ORDER BY created_at, operation_id', self::tableName(), $paymentKey));
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Authoritative custom refund reads participate in transaction/CAS recovery and must not use stale object-cache data.
+        return $this->rows($wpdb->get_results($wpdb->prepare('SELECT payload FROM %i WHERE native_payment_key = %s ORDER BY created_at, operation_id', self::tableName(), $paymentKey), ARRAY_A));
     }
 
     public function bindWithdrawal(string $operationId, string $id): string
@@ -376,8 +386,9 @@ class RefundIntentStore implements RefundIntentStoreInterface
         global $wpdb;
         self::install();
         $limit = max(1, min(100, $limit));
-        $items = $this->rows($wpdb->prepare('SELECT payload FROM %i WHERE next_check <= %d AND operation_id > %s ORDER BY operation_id LIMIT %d',
-            self::tableName(), $now->getTimestamp(), $cursor ?: '', $limit));
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Authoritative custom refund reads participate in transaction/CAS recovery and must not use stale object-cache data.
+        $items = $this->rows($wpdb->get_results($wpdb->prepare('SELECT payload FROM %i WHERE next_check <= %d AND operation_id > %s ORDER BY operation_id LIMIT %d',
+            self::tableName(), $now->getTimestamp(), $cursor ?: '', $limit), ARRAY_A));
         return new RefundIntentPage($items, count($items) === $limit ? end($items)->operationId() : null);
     }
 
@@ -404,6 +415,7 @@ class RefundIntentStore implements RefundIntentStoreInterface
     {
         global $wpdb;
         // Two matching rows are already ambiguous; never scan the entire store.
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Custom durable refund state requires authoritative SQL under the existing transaction/ownership fences; object caching could replay stale financial state.
         $rows = $wpdb->get_results($wpdb->prepare("SELECT DISTINCT o.id FROM %i o
             JOIN %i i ON i.edd_order_id = o.id AND i.meta_key = %s AND i.meta_value = %s
             JOIN %i e ON e.edd_order_id = o.id AND e.meta_key = %s AND e.meta_value = %s
@@ -417,6 +429,7 @@ class RefundIntentStore implements RefundIntentStoreInterface
     public function external(string $withdrawalId): ?array
     {
         global $wpdb;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Custom durable refund state requires authoritative SQL under the existing transaction/ownership fences; object caching could replay stale financial state.
         $row = $wpdb->get_row($wpdb->prepare('SELECT payload FROM %i WHERE withdrawal_id = %s',
             $wpdb->prefix . 'paymos_edd_refund_observations', $withdrawalId), ARRAY_A);
         if ($wpdb->last_error !== '') { throw new \RuntimeException('refund_external_read_failed'); }
@@ -448,8 +461,10 @@ class RefundIntentStore implements RefundIntentStoreInterface
                     ($snapshot->status() === 'completed' ? null : 'cash_rewound'), 'version' => $old === null ? 1 : $old['version'] + 1);
             $columns = array('payload' => $this->encode($data), 'version' => $data['version'], 'next_check' => time() + 86400);
             $table = $wpdb->prefix . 'paymos_edd_refund_observations';
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Custom durable refund state requires authoritative SQL under the existing transaction/ownership fences; object caching could replay stale financial state.
             $ok = $old === null ? $wpdb->insert($table, array_merge($columns,
                 array('withdrawal_id' => $snapshot->withdrawalId(), 'native_payment_key' => $this->paymentKey)))
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Custom durable refund state requires authoritative SQL under the existing transaction/ownership fences; object caching could replay stale financial state.
                 : $wpdb->update($table, $columns, array('withdrawal_id' => $snapshot->withdrawalId(), 'version' => $old['version']));
             if ($ok !== 1) { throw new \RuntimeException('refund_external_write_conflict'); }
         });
@@ -458,6 +473,7 @@ class RefundIntentStore implements RefundIntentStoreInterface
     public function externalForPayment(string $paymentKey): array
     {
         global $wpdb;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Custom durable refund state requires authoritative SQL under the existing transaction/ownership fences; object caching could replay stale financial state.
         $rows = $wpdb->get_results($wpdb->prepare('SELECT payload FROM %i WHERE native_payment_key = %s',
             $wpdb->prefix . 'paymos_edd_refund_observations', $paymentKey), ARRAY_A);
         if (!is_array($rows) || $wpdb->last_error !== '') { throw new \RuntimeException('refund_external_read_failed'); }
@@ -467,21 +483,20 @@ class RefundIntentStore implements RefundIntentStoreInterface
     private function find($column, $value): ?RefundIntent
     {
         global $wpdb;
-        return $this->row($wpdb->prepare('SELECT payload FROM %i WHERE %i = %s', self::tableName(), $column, $value));
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Authoritative custom refund reads participate in transaction/CAS recovery and must not use stale object-cache data.
+        return $this->row($wpdb->get_row($wpdb->prepare('SELECT payload FROM %i WHERE %i = %s', self::tableName(), $column, $value), ARRAY_A));
     }
 
-    private function row($sql): ?RefundIntent
+    private function row($row): ?RefundIntent
     {
         global $wpdb;
-        $row = $wpdb->get_row($sql, ARRAY_A);
         if ($wpdb->last_error !== '') { throw new \RuntimeException('refund_store_read_failed'); }
         return is_array($row) ? $this->decode($row['payload']) : null;
     }
 
-    private function rows($sql): array
+    private function rows($rows): array
     {
         global $wpdb;
-        $rows = $wpdb->get_results($sql, ARRAY_A);
         if (!is_array($rows) || $wpdb->last_error !== '') { throw new \RuntimeException('refund_store_read_failed'); }
         return array_map(function ($row) { return $this->decode($row['payload']); }, $rows);
     }
@@ -514,6 +529,7 @@ class RefundIntentStore implements RefundIntentStoreInterface
         $data = array_replace($old, $changes, array('version' => $old['version'] + 1));
         $columns = array('payload' => $this->encode($data), 'withdrawal_id' => $data['withdrawal_id'], 'version' => $data['version']);
         if ($nextCheck !== null) { $columns['next_check'] = $nextCheck; }
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Custom durable refund state requires authoritative SQL under the existing transaction/ownership fences; object caching could replay stale financial state.
         if ($wpdb->update(self::tableName(), $columns, array('operation_id' => $intent->operationId(), 'version' => $old['version'])) !== 1) {
             throw new \RuntimeException('refund_store_write_conflict');
         }
