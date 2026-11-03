@@ -677,43 +677,58 @@ final class RefundAdapter implements NativeRefundProjectorInterface
 
     public static function nativeAjax(?self $adapter = null)
     {
-        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Preserve exact native monetary fields; EDD FormParser/Validator and the immutable full draft validate them before any provider request.
-        $post = wp_unslash($_POST);
-        $id = isset($post['order_id']) && is_scalar($post['order_id']) ? (int) $post['order_id'] : 0;
+        $id = isset($_POST['order_id']) && is_scalar($_POST['order_id'])
+            ? (int) sanitize_text_field(wp_unslash((string) $_POST['order_id'])) : 0;
         if ($id < 1 || edd_get_payment_gateway($id) !== Gateway::ID) { return; }
         // Other gateways and native requests without our durable token retain their core handler.
-        if (!isset($post['paymos_refund_token']) || !is_string($post['paymos_refund_token'])) { return; }
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Exact token equality is checked against sanitize_text_field below so stripped HTML tags are rejected instead of normalized.
+        $rawToken = isset($_POST['paymos_refund_token']) && is_string($_POST['paymos_refund_token']) ? wp_unslash($_POST['paymos_refund_token']) : null;
+        if ($rawToken === null) { return; }
         $input = array();
-        parse_str(isset($post['data']) && is_string($post['data']) ? $post['data'] : '', $input);
-        $nonce = isset($input['edd_process_refund']) && is_string($input['edd_process_refund']) ? $input['edd_process_refund'] : '';
-        if (!current_user_can('edit_shop_payments') || !wp_verify_nonce($nonce, 'edd_process_refund')) {
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- URL-encoded EDD refund form string is decoded with parse_str; nonce and monetary fields are sanitized and validated below.
+        $rawData = isset($_POST['data']) && is_string($_POST['data']) ? wp_unslash($_POST['data']) : '';
+        parse_str($rawData, $input);
+        $nonce = isset($input['edd_process_refund']) && is_string($input['edd_process_refund'])
+            ? sanitize_text_field(wp_unslash($input['edd_process_refund'])) : '';
+        if (!current_user_can('edit_shop_payments') || $nonce === '' || !wp_verify_nonce($nonce, 'edd_process_refund')) {
             wp_send_json_error(array('message' => RefundCopy::text('unavailable')), 403); return;
         }
-        $token = sanitize_text_field($post['paymos_refund_token']);
-        if ($token !== $post['paymos_refund_token']) { $token = ''; }
+        $input['edd_process_refund'] = $nonce;
+        $token = sanitize_text_field($rawToken);
+        if ($token !== $rawToken) { $token = ''; }
         self::ajax($id, RefundStates::FULL, true, $adapter, $input, $token);
     }
 
     public static function managedAjax(?self $adapter = null)
     {
-        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Keep unexpected amount/address fields intact so mode-only validation rejects them; scalar control fields are normalized below.
-        $input = wp_unslash($_POST);
-        $id = isset($input['order_id']) && is_scalar($input['order_id']) ? (int) $input['order_id'] : 0;
-        $nonce = isset($input['security']) && is_string($input['security']) ? $input['security'] : '';
-        if (!current_user_can('edit_shop_payments') || !wp_verify_nonce($nonce, 'paymos_edd_refund_' . $id)) {
+        $id = isset($_POST['order_id']) && is_scalar($_POST['order_id'])
+            ? (int) sanitize_text_field(wp_unslash((string) $_POST['order_id'])) : 0;
+        $nonce = isset($_POST['security']) && is_string($_POST['security'])
+            ? sanitize_text_field(wp_unslash($_POST['security'])) : '';
+        if (!current_user_can('edit_shop_payments') || $nonce === '' || !wp_verify_nonce($nonce, 'paymos_edd_refund_' . $id)) {
             wp_send_json_error(array('message' => RefundCopy::text('unavailable')), 403); return;
         }
-        $mode = isset($input['mode']) && is_string($input['mode']) ? sanitize_key($input['mode']) : '';
-        if ($mode !== ($input['mode'] ?? null)) { $mode = ''; }
-        $token = isset($input['paymos_refund_token']) && is_string($input['paymos_refund_token']) ? sanitize_text_field($input['paymos_refund_token']) : '';
-        if ($token !== ($input['paymos_refund_token'] ?? null)) { $token = ''; }
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Exact mode/token equality is checked against sanitize_key/sanitize_text_field below so malformed inputs are rejected.
+        $rawMode = isset($_POST['mode']) && is_string($_POST['mode']) ? wp_unslash($_POST['mode']) : null;
+        $mode = $rawMode !== null ? sanitize_key($rawMode) : '';
+        if ($mode !== $rawMode) { $mode = ''; }
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Exact mode/token equality is checked against sanitize_key/sanitize_text_field below so malformed inputs are rejected.
+        $rawToken = isset($_POST['paymos_refund_token']) && is_string($_POST['paymos_refund_token']) ? wp_unslash($_POST['paymos_refund_token']) : null;
+        $token = $rawToken !== null ? sanitize_text_field($rawToken) : '';
+        if ($token !== $rawToken) { $token = ''; }
+        $input = array('security' => $nonce);
+        foreach (array('amount', 'refund_amount', 'refund_order_item', 'refund_order_adjustment', 'address', 'recipient') as $field) {
+            if (isset($_POST[$field])) { $input[$field] = ''; }
+        }
         self::ajax($id, $mode, false, $adapter, $input, $token);
     }
 
     private static function ajax(int $id, string $mode, bool $native, ?self $adapter, array $input, string $token): void
     {
-        $nonce = $native ? ($input['edd_process_refund'] ?? '') : ($input['security'] ?? '');
+        $rawNonce = $native ? ($input['edd_process_refund'] ?? '') : ($input['security'] ?? '');
+        $nonce = is_string($rawNonce) ? sanitize_text_field(wp_unslash($rawNonce)) : '';
         if (!current_user_can('edit_shop_payments')
+            || $nonce === ''
             || !wp_verify_nonce($nonce, $native ? 'edd_process_refund' : 'paymos_edd_refund_' . $id)) {
             wp_send_json_error(array('message' => RefundCopy::text('unavailable')), 403); return;
         }
@@ -756,7 +771,7 @@ final class RefundAdapter implements NativeRefundProjectorInterface
             Logger::error('Paymos refund panel failed: ' . $error->getMessage(), array('payment_id' => $id));
             echo '<p role="alert">' . esc_html(RefundCopy::error($error->getMessage())) . '</p>';
         }
-        echo '<script>window.paymosEddRefunds=' . wp_json_encode($settings) . ';</script>';
         wp_enqueue_script('paymos-edd-refunds', plugins_url('assets/js/refunds.js', PAYMOS_EDD_PLUGIN_FILE), array('jquery'), PAYMOS_EDD_PLUGIN_VERSION, true);
+        wp_add_inline_script('paymos-edd-refunds', 'window.paymosEddRefunds=' . wp_json_encode($settings) . ';', 'before');
     }
 }
