@@ -151,8 +151,9 @@ final class RefundAdapter implements NativeRefundProjectorInterface
             $this->assertMapping($fresh, $intent);
             $this->assertOriginalPaid($fresh);
             if ($intent->fullDraft() !== null) { $this->assertDraft($fresh, $intent->fullDraft()); }
+            $summary = $this->invoiceSummary($invoice);
             $flag = $intent->mode() === RefundStates::FULL ? 'can_refund_full' : 'can_refund_overpayment';
-            if (!isset($invoice['refund_summary'][$flag]) || $invoice['refund_summary'][$flag] !== true) {
+            if (!isset($summary[$flag]) || $summary[$flag] !== true) {
                 return 'refund_server_not_eligible';
             }
             return null;
@@ -395,7 +396,7 @@ final class RefundAdapter implements NativeRefundProjectorInterface
             $this->store->assertOwned();
             $order = $this->store->loadOrder();
             $this->assertInvoice($invoice, $order);
-            $summary = $invoice['refund_summary'] ?? array();
+            $summary = $this->invoiceSummary($invoice);
             try {
                 $this->assertNativeSupport(); $this->requireCapability($this->environment($order)); $this->assertOriginalPaid($order);
                 $this->store->assertTransactionalTables();
@@ -408,6 +409,25 @@ final class RefundAdapter implements NativeRefundProjectorInterface
             } catch (\Throwable $error) { $summary['can_refund_full'] = false; $summary['can_refund_overpayment'] = false; $summary['local_unavailable_reason'] = $error->getMessage(); }
             return $summary;
         });
+    }
+
+    private function invoiceSummary(array $invoice): array
+    {
+        if (array_key_exists('refund_summary', $invoice)) {
+            return is_array($invoice['refund_summary']) ? $invoice['refund_summary'] : array();
+        }
+        $status = isset($invoice['status']) && is_string($invoice['status']) ? $invoice['status'] : '';
+        $payment = isset($invoice['payment']) && is_array($invoice['payment']) ? $invoice['payment'] : array();
+        $paid = in_array($status, array('paid', 'paid_over'), true);
+        $overpaid = $status === 'paid_over';
+        return array(
+            'can_refund_full' => $paid,
+            'can_refund_overpayment' => $overpaid,
+            'full_refund_amount' => isset($payment['paid']) && is_string($payment['paid']) ? $payment['paid'] : ($paid ? (string) ($invoice['order']['amount'] ?? '0') : '0'),
+            'overpayment_refund_amount' => $overpaid && isset($payment['paid']) && is_string($payment['paid']) ? $payment['paid'] : '0',
+            'refund_asset' => isset($payment['currency'], $payment['network'])
+                ? array('currency' => $payment['currency'], 'network' => $payment['network']) : null,
+        );
     }
 
     private function requireCapability(string $environment): void
