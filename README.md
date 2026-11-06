@@ -112,9 +112,32 @@ amount and currency before anything is written.
 
 Failures answer with a status the sender can act on, because a non-2xx is what keeps the event in
 the retry ladder: `401` for a bad signature or a stale timestamp, `400` when processing failed,
-`500` when no webhook secret is stored. That ladder is 11 attempts across roughly 16 hours. This
-plugin ships no local reconciliation job, so an event that outlives it is replayed by hand from the
-Paymos dashboard.
+`500` when no webhook secret is stored. That ladder is 11 attempts across roughly 16 hours. Unpaid
+invoices rely on signed `invoice.paid` webhooks and have no local invoice reconciliation cron, so an
+invoice event that outlives the ladder is replayed by hand from the Paymos dashboard. Pending
+refunds are polled locally once per minute by the `paymos_edd_refunds_reconcile` WP-Cron job until
+they reach a terminal state.
+
+## Refunds
+
+The gateway supports native on-chain refunds through the Paymos Merchant API (`/v1/refunds`) in two
+modes:
+
+- `full` — refunds the full paid invoice amount;
+- `overpayment` — refunds only the excess received on an `invoice.paid_over` order while keeping
+  the order complete.
+
+Funds are returned exclusively to the verified `first_sender` wallet address recorded by Paymos when
+the buyer paid the invoice. No manual recipient wallet address is entered, and arbitrary partial
+refund amounts are not supported.
+
+On a completed Paymos order in **Downloads → Orders**, you can start a `full` refund from EDD's
+native **Initiate a Refund** dialog (with all order items selected in full) or manage both `full`
+and `overpayment` refunds and status checks from the **Paymos refunds** panel on the order details
+screen. EDD records the local refund order and sends the refund receipt only after Paymos confirms
+`completed` via `/wp-json/paymos-edd/v1/webhook` or the 1-minute `paymos_edd_refunds_reconcile`
+WP-Cron job. In Sandbox mode, terminal refund outcomes (`completed`, `failed`, `cancelled`) can be
+simulated without moving funds.
 
 ## Troubleshooting
 
