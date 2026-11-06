@@ -4,7 +4,7 @@ Tags: payments, stablecoin, usdt, usdc, easy digital downloads
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.6.1
+Stable tag: 1.6.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -14,13 +14,15 @@ Accept stablecoin payments in Easy Digital Downloads with Paymos hosted checkout
 
 The official package contains no merchant credentials. Open Downloads -> Settings -> Payments -> Paymos and click Connect Paymos. Approve the current project in Paymos; the plugin receives Sandbox and Live credentials once, stores them in an AES-256-GCM encrypted WordPress option, and discards the short-lived OAuth token.
 
-Runtime Merchant API requests remain HMAC signed. Signed webhooks update payments. There is no local reconciliation job in this plugin: a delivery that fails is retried by Paymos across roughly 16 hours, and anything that outlives the ladder is replayed by hand from the Paymos dashboard.
+Runtime Merchant API requests remain HMAC signed. Signed webhooks update invoices without a local invoice reconciliation job: a delivery that fails is retried by Paymos across roughly 16 hours, and anything that outlives the ladder is replayed from the Paymos dashboard. Pending refunds are reconciled locally by a 1-minute WP-Cron job (`paymos_edd_refunds_reconcile`).
 
 == External services ==
 
 Paymos handles payment requests for this Easy Digital Downloads gateway. To connect, click **Connect Paymos** in your WordPress admin and approve the connection in Paymos. Device authorization starts at `https://app.paymos.io/connect/cms/device`; the plugin polls `https://app.paymos.io/connect/token` for approval. The browser approval URL carries the plugin identifier, store origin, admin return URL, and `user_code`. The plugin sends the secret `device_code` to the token endpoint. It stores the returned Sandbox and Live credentials in AES-256-GCM-encrypted WordPress options and discards the short-lived OAuth token.
 
 For payments, the plugin creates invoices at `https://api.paymos.io/v1/invoices`, checks them with `GET /v1/invoices/{invoice_id}`, and cancels them with `POST /v1/invoices/{invoice_id}/cancel`. Each signed request sends a key ID, timestamp, and HMAC signature. The API secret stays with the plugin for signing. Invoice fields include `project_id`, `amount`, `currency`, `external_order_id`, and, when available, the native customer ID as `client_id`. New orders use a random opaque reference. Existing references remain in use and can contain an EDD purchase key.
+
+For refunds, the plugin sends `POST /v1/refunds` requests to `https://api.paymos.io/v1/refunds` with only `invoice_id`, `mode` (`full` or `overpayment`), and `external_order_id`; Paymos returns funds strictly to the verified `first_sender` address recorded on the invoice. The plugin checks individual refund status with `GET /v1/refunds/{refund_id}`, polls cursor-paginated refund pages with `GET /v1/refunds` (`cursor`, `limit`, `invoice_id`, and `status`), and in Sandbox mode simulates terminal outcomes with `POST /v1/sandbox/refunds/{refund_id}/simulate` sending `status` (`completed`, `failed`, or `cancelled`). Pending refunds are polled by a 1-minute WP-Cron job (`paymos_edd_refunds_reconcile`).
 
 Buyers pay over HTTPS at `https://checkout.paymos.io`. Signed invoice and payment webhooks return to the store to update orders. Service terms and data handling appear in the [Terms](https://paymos.io/terms) and [Privacy Policy](https://paymos.io/privacy).
 
@@ -43,6 +45,11 @@ No. Every merchant downloads the same public package.
 In a non-autoloaded WordPress option encrypted with AES-256-GCM using installation security salts.
 
 == Changelog ==
+
+= 1.6.2 =
+* fix(cms): align marketplace manifests, refund copy, store links, and release guards
+* chore: bundle Paymos PHP SDK v1.9.1
+* chore: rebuild canonical CMS package
 
 = 1.6.1 =
 * fix(plugins): use wp_add_inline_script, sanitize nonces before wp_verify_nonce, and guard curl_close on PHP 8+
@@ -293,34 +300,6 @@ Fixed:
   Paymos tries again, and the lock the first delivery holds is left alone.
 
 = 1.4.9 =
-* chore: rebuild canonical CMS package
-
-* Compare amounts as exact decimals and require complete invoice snapshots plus API confirmation before changing payment state.
-* Serialize order updates and recover when native payment completion returns `false` from save or status updates.
-* Check ownership when updating event reservations, and purge at most 100 expired records per reservation.
-
-Fixed:
-* Entries that were present, non-empty and still English — `Connect Paymos` in
-  German and Spanish, the plugin name in Turkish and Chinese, `Webhook URL` in
-  Chinese — and one string missing from every catalogue
-  (`in the invoice currency`, the fallback in the underpayment notice).
-* A late non-final webhook could reopen a finished order. Webhooks are
-  delivered at least once and in no particular order, and only paid orders were
-  guarded: an `invoice.underpaid_waiting` or `invoice.confirming` arriving after
-  the invoice had already ended underpaid, expired or cancelled moved the order
-  back into an open state. Nothing leaves a final status on the server, so once
-  one is recorded for an invoice every later event for it is ignored and the
-  final status stays recorded.
-* A new invoice now resets the Paymos status recorded on the payment, so an
-  event for it is never taken for a stale one after an earlier final status.
-* A webhook retry that arrived while the first delivery was still being
-  processed was answered 200 "duplicate". Paymos gives a delivery 10 seconds and
-  retries, while a slow reverse-verification call can take longer; the retry was
-  acknowledged as delivered, and if the first attempt then failed the event was
-  lost. An event that is only locked, not yet committed, is now answered 409 so
-  Paymos tries again, and the lock the first delivery holds is left alone.
-
-= 1.4.8 =
 * chore: rebuild canonical CMS package
 
 * Compare amounts as exact decimals and require complete invoice snapshots plus API confirmation before changing payment state.

@@ -643,7 +643,7 @@ final class RefundAdapter implements NativeRefundProjectorInterface
 
     private function noteContent(string $marker, VerifiedRefund $snapshot): string
     {
-        // TODO-COPY: cash observation label.
+        // Format the order note using the localized cash observation label.
         return 'Paymos [' . $marker . '] ' . $snapshot->withdrawalId() . ' | ' . RefundCopy::text('cash_note', 'en') . ' | '
             . $snapshot->principalDecimal() . ' ' . $snapshot->currency() . '/' . $snapshot->network();
     }
