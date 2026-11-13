@@ -50,6 +50,7 @@ unset($_srcRoot, $_iter, $_files, $_file, $_rel, $_f, $_predefined);
 require __DIR__ . '/ConfigTest.php';
 require __DIR__ . '/LoggerTest.php';
 require __DIR__ . '/CredentialStoreTest.php';
+require __DIR__ . '/ConnectStateStoreTest.php';
 require __DIR__ . '/GatewayTest.php';
 require __DIR__ . '/PaymentMapperTest.php';
 require __DIR__ . '/PaidLateCallbackTest.php';

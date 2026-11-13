@@ -78,6 +78,10 @@ final class WebhookController
         } catch (TimestampSkewException $e) {
             Logger::error('Paymos webhook timestamp skew.');
             return new \WP_REST_Response(array('error' => 'bad_timestamp'), 401);
+        } catch (EventStorageException $e) {
+            try { $eventStore->release(); } catch (\Throwable $releaseError) { /* Preserve the storage failure. */ }
+            Logger::error('Paymos event storage failed: ' . $e->getMessage());
+            return new \WP_REST_Response(array('error' => 'storage_failed'), 500);
         } catch (\Throwable $e) {
             try {
                 $eventStore->release();
@@ -106,6 +110,20 @@ final class WebhookController
             $lock->assertOwned();
             PaymentRepository::refresh($paymentId);
             PaymentRepository::assertPaymosPayment($paymentId);
+            // Current pending intents recover by exact POST below; a missing invoice ID
+            // does not make their late-payment event a historical generation.
+            if ($event->type() === 'invoice.paid_late'
+                && PaymentRepository::getMeta($paymentId, '_paymos_external_order_id') !== $event->externalOrderId()) {
+                $binding = PaymentRepository::historicalInvoiceBinding($paymentId, $event->invoiceId());
+                if (($binding['environment'] ?? '') !== $environment
+                    || ($binding['external_order_id'] ?? '') !== $event->externalOrderId()
+                    || !(new InvoiceReverseVerifier(self::client($environment)))->verify($event, $binding)->isVerified()) {
+                    throw new \RuntimeException('Paymos historical invoice verification failed.');
+                }
+                $lock->assertOwned();
+                (new PaymentMapper())->apply($paymentId, $event->toArray(), $lock);
+                return;
+            }
             self::assertPaymentMatchesEvent($paymentId, $event, $environment, $lock);
             self::reverseVerifyTerminalEvent($event, $paymentId, $environment);
             $lock->assertOwned();
@@ -215,7 +233,7 @@ final class WebhookController
         foreach (array('api_key', 'api_secret', 'base_url') as $required) {
             if (!isset($config[$required]) || !is_scalar($config[$required]) || trim((string) $config[$required]) === '') {
                 // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Diagnostic exception is caught and logged, never rendered as HTML.
-                throw new \RuntimeException('Paymos connected credentials are missing ' . $required . ' for ' . (string) $environment . '.');
+                throw new EventStorageException('Paymos connected credentials are missing ' . $required . ' for ' . (string) $environment . '.');
             }
         }
 

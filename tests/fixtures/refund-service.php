@@ -66,7 +66,12 @@ namespace {
     function wp_unslash($value) { return $value; }
     function sanitize_key($value) { return preg_replace('/[^a-z0-9_-]/', '', strtolower((string) $value)); }
     function sanitize_text_field($value) { return trim(strip_tags((string) $value)); }
-    function wp_send_json_error($data, $status = null) { $GLOBALS['paymos_edd_refund_json'] = array('success' => false, 'data' => $data, 'status' => $status); }
+    function wp_send_json_error($data, $status = null) {
+        $GLOBALS['paymos_edd_refund_json'] = array('success' => false, 'data' => $data, 'status' => $status);
+        if (!empty($GLOBALS['paymos_edd_terminate_json_errors'])) {
+            throw new PaymosEddAjaxExit('AJAX error response ended the request.', $status ?? 200);
+        }
+    }
     function wp_send_json_success($data, $status = null) { $GLOBALS['paymos_edd_refund_json'] = array('success' => true, 'data' => $data, 'status' => $status); }
     function edd_add_order_transaction($data)
     {
@@ -238,6 +243,7 @@ namespace {
         public $requests = array();
         public $refunds = array();
         public $summaryEnabled = true;
+        public $omitSummary = false;
         public $loseReply = false;
         public $loseAllReplies = false;
         public $tamperProject = false;
@@ -273,6 +279,7 @@ namespace {
                     }
                 }
             }
+            if ($this->omitSummary) { unset($data['refund_summary']); }
             return new \Paymos\Http\HttpResponse(200, json_encode($data), array('content-type' => 'application/json'));
         }
     }

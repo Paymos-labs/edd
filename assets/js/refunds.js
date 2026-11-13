@@ -23,8 +23,9 @@
                 .done(function (response) {
                     if (!response.success) { status.text(labels.request_failed); return; }
                     var value = response.data, asset = value.refund_asset || {};
-                    summary.text((labels.full) + ': ' + (value.full_refund_amount || '0') + ' / '
-                        + (labels.overpayment) + ': ' + (value.overpayment_refund_amount || '0')
+                    var amountsKnown = value.full_refund_amount != null && value.overpayment_refund_amount != null;
+                    summary.text((amountsKnown ? (labels.full) + ': ' + value.full_refund_amount + ' / '
+                        + (labels.overpayment) + ': ' + value.overpayment_refund_amount : labels.server_calculates)
                         + ' ' + (asset.currency || '') + '/' + (asset.network || '')
                         + (value.sender_address ? ' → ' + value.sender_address : ''));
                     buttons.full.prop('disabled', value.can_refund_full !== true);

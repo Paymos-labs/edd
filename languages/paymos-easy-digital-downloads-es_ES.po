@@ -137,3 +137,51 @@ msgstr "en la moneda de la factura"
 #: includes/PaymentMapper.php:135
 msgid "Paymos: the customer finished paying for this order after the invoice closed. Check stock, then fulfil the order manually or refund the payment."
 msgstr "Paymos: el cliente terminó de pagar este pedido con retraso. Revisa el inventario y completa el pedido a mano o devuélvele el dinero."
+
+
+msgid "Open the approval page"
+msgstr "Abrir la página de autorización"
+
+
+msgid "Your browser blocked the approval tab."
+msgstr "El navegador ha bloqueado la pestaña de autorización."
+
+
+msgid "Code:"
+msgstr "Código:"
+
+
+msgid "Paymos connection failed."
+msgstr "No se ha podido conectar Paymos."
+
+
+msgid "Paymos connected. Reloading…"
+msgstr "Paymos conectado. Recargando…"
+
+
+msgid "Waiting for approval in Paymos…"
+msgstr "Esperando la autorización en Paymos…"
+
+
+msgid "Starting secure connection…"
+msgstr "Iniciando una conexión segura…"
+
+
+msgid "Paymos connection was denied or expired."
+msgstr "La conexión con Paymos se ha rechazado o ha caducado."
+
+
+msgid "Access denied."
+msgstr "Acceso denegado."
+
+
+msgid "Paymos calculates the available refund amount when you submit the request."
+msgstr "Paymos calcula el importe disponible para el reembolso al enviar la solicitud."
+
+
+msgid "Paymos is waiting for the payment again — a confirmed transfer was rolled back on-chain."
+msgstr "Paymos vuelve a esperar el pago: una transferencia confirmada se ha revertido en la cadena."
+
+
+msgid "Paymos received only part of the payment. %1$s %2$s is still outstanding — the payment stays pending until the customer sends the rest."
+msgstr "Paymos solo ha recibido parte del pago. Quedan %1$s %2$s por pagar; el pago seguirá pendiente hasta que el cliente envíe el resto."

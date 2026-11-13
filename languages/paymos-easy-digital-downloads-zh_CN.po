@@ -201,3 +201,51 @@ msgstr "以账单货币计"
 #: includes/PaymentMapper.php:135
 msgid "Paymos: the customer finished paying for this order after the invoice closed. Check stock, then fulfil the order manually or refund the payment."
 msgstr "Paymos：这笔订单在账单关闭后才付清。请核对库存，再手动完成订单或向买家退款。"
+
+
+msgid "Open the approval page"
+msgstr "打开授权页面"
+
+
+msgid "Your browser blocked the approval tab."
+msgstr "浏览器阻止了授权标签页。"
+
+
+msgid "Code:"
+msgstr "验证码："
+
+
+msgid "Paymos connection failed."
+msgstr "未能连接 Paymos。"
+
+
+msgid "Paymos connected. Reloading…"
+msgstr "Paymos 已连接。正在刷新…"
+
+
+msgid "Waiting for approval in Paymos…"
+msgstr "等待在 Paymos 中授权…"
+
+
+msgid "Starting secure connection…"
+msgstr "正在建立安全连接…"
+
+
+msgid "Paymos connection was denied or expired."
+msgstr "Paymos 连接被拒绝或授权已过期。"
+
+
+msgid "Access denied."
+msgstr "无权访问。"
+
+
+msgid "Paymos calculates the available refund amount when you submit the request."
+msgstr "提交申请时，Paymos 将计算可退款金额。"
+
+
+msgid "Paymos is waiting for the payment again — a confirmed transfer was rolled back on-chain."
+msgstr "已确认的转账在链上被回滚，Paymos 正在重新等待付款。"
+
+
+msgid "Paymos received only part of the payment. %1$s %2$s is still outstanding — the payment stays pending until the customer sends the rest."
+msgstr "Paymos 仅收到部分付款，尚欠 %1$s %2$s。在客户付清余款前，付款将保持待处理状态。"

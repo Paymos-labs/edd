@@ -4,6 +4,35 @@ declare(strict_types=1);
 
 use PaymosEasyDigitalDownloads\WebhookController;
 
+function test_edd_webhook_database_failure_is_500_and_same_delivery_recovers()
+{
+    paymos_edd_reset_test_state();
+    paymos_edd_seed_payment();
+    WebhookController::set_client_factory_for_tests(static function () { return paymos_edd_reverse_verify_client(); });
+    $body = json_encode(paymos_edd_invoice_event('evt_db_retry', 'invoice.paid', 'paid'));
+    $request = new WP_REST_Request($body, array('x-webhook-signature' => paymos_edd_signed_header('whsec_sandbox', $body)));
+    $GLOBALS['wpdb']->fail = true;
+    assertSameValue(500, WebhookController::handle($request)->get_status(), 'Infrastructure errors must not be reported as invalid payloads.');
+    assertSameValue('pending', edd_get_payment_status(100), 'Unavailable storage cannot grant downloads.');
+    $GLOBALS['wpdb']->fail = false;
+    assertSameValue(200, WebhookController::handle($request)->get_status(), 'The same signed event recovers after storage returns.');
+    assertSameValue(200, WebhookController::handle($request)->get_status(), 'Committed retries are successful duplicates.');
+    assertSameValue(1, $GLOBALS['paymos_edd_completion_count'], 'Recovery completes exactly once.');
+}
+
+function test_edd_webhook_event_read_failure_is_500_not_a_busy_delivery()
+{
+    paymos_edd_reset_test_state();
+    paymos_edd_seed_payment();
+    $store = new PaymosEasyDigitalDownloads\EventStore();
+    $store->remember('evt_read_failure', 3600);
+    $GLOBALS['wpdb']->failReads = true;
+    $body = json_encode(paymos_edd_invoice_event('evt_read_failure', 'invoice.paid', 'paid'));
+    $request = new WP_REST_Request($body, array('x-webhook-signature' => paymos_edd_signed_header('whsec_sandbox', $body)));
+    assertSameValue(500, WebhookController::handle($request)->get_status(), 'A failed SQL SELECT is infrastructure failure, not a 409 owner conflict.');
+    assertSameValue('pending', edd_get_payment_status(100), 'A read failure cannot complete payment.');
+}
+
 function test_edd_webhook_completes_paid_payment_after_signature_and_reverse_lookup()
 {
     paymos_edd_reset_test_state();

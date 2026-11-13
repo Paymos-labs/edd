@@ -79,13 +79,14 @@ final class EventStore implements CommitAwareEventStoreInterface
         ) {$charset}", $table));
         // phpcs:enable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
         if ($created === false) {
-            throw new \RuntimeException('Paymos event storage is unavailable.');
+            throw new EventStorageException('Paymos event storage is unavailable.');
         }
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Uncached native schema inspection during the versioned upgrade.
         $column = $wpdb->get_row($wpdb->prepare('SHOW COLUMNS FROM %i LIKE %s', $table, 'owner_token'), ARRAY_A);
+        self::assertReadSucceeded();
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Versioned owner-token migration in the integration-owned table.
         if (!is_array($column) && $wpdb->query($wpdb->prepare("ALTER TABLE %i ADD owner_token char(32) NOT NULL DEFAULT ''", $table)) === false) {
-            throw new \RuntimeException('Paymos event storage upgrade failed.');
+            throw new EventStorageException('Paymos event storage upgrade failed.');
         }
         update_option(self::SCHEMA_OPTION, self::SCHEMA_VERSION, false);
     }
@@ -95,7 +96,7 @@ final class EventStore implements CommitAwareEventStoreInterface
         global $wpdb;
         self::ensureTable();
         if ($this->pendingHash !== '') {
-            throw new \RuntimeException('Paymos event reservation is already owned.');
+            throw new EventStorageException('Paymos event reservation is already owned.');
         }
         self::purgeExpired();
         $hash = md5((string) $eventId);
@@ -107,11 +108,12 @@ final class EventStore implements CommitAwareEventStoreInterface
             self::tableName(), $hash, (string) $eventId, $token, 'processing', $now + 300, $now, $now
         ));
         if ($inserted === false) {
-            throw new \RuntimeException('Paymos event reservation failed.');
+            throw new EventStorageException('Paymos event reservation failed.');
         }
         if ($inserted !== 1) {
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Read the current owner for a fenced compare-and-swap, never a cached lease.
             $row = $wpdb->get_row($wpdb->prepare('SELECT owner_token,status,expires_at FROM %i WHERE event_hash=%s', self::tableName(), $hash), ARRAY_A);
+            self::assertReadSucceeded();
             if (!is_array($row) || (int) $row['expires_at'] > $now) {
                 return false;
             }
@@ -122,7 +124,7 @@ final class EventStore implements CommitAwareEventStoreInterface
                 (string) $row['owner_token'], (string) $row['status'], (int) $row['expires_at'], $now
             ));
             if ($inserted === false) {
-                throw new \RuntimeException('Paymos event reservation failed.');
+                throw new EventStorageException('Paymos event reservation failed.');
             }
             if ($inserted !== 1) {
                 return false;
@@ -140,6 +142,7 @@ final class EventStore implements CommitAwareEventStoreInterface
         self::ensureTable();
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Deduplication requires current committed state from SQL.
         $row = $wpdb->get_row($wpdb->prepare('SELECT status,expires_at FROM %i WHERE event_hash=%s', self::tableName(), md5((string) $eventId)), ARRAY_A);
+        self::assertReadSucceeded();
         return is_array($row) && $row['status'] === 'committed' && (int) $row['expires_at'] > time();
     }
 
@@ -158,7 +161,7 @@ final class EventStore implements CommitAwareEventStoreInterface
             $this->pendingHash, $this->ownerToken, 'processing', $now
         ));
         if ($updated !== 1) {
-            throw new \RuntimeException('Paymos event reservation ownership was lost.');
+            throw new EventStorageException('Paymos event reservation ownership was lost.');
         }
         $this->clearPending();
     }
@@ -174,7 +177,7 @@ final class EventStore implements CommitAwareEventStoreInterface
         $deleted = $wpdb->query($wpdb->prepare('DELETE FROM %i WHERE event_hash=%s AND owner_token=%s AND status=%s', self::tableName(), $this->pendingHash, $this->ownerToken, 'processing'));
         $this->clearPending();
         if ($deleted === false) {
-            throw new \RuntimeException('Paymos event reservation release failed.');
+            throw new EventStorageException('Paymos event reservation release failed.');
         }
     }
 
@@ -185,7 +188,7 @@ final class EventStore implements CommitAwareEventStoreInterface
         // Indexed deadline excludes live leases; at most 100 rows per request.
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Prepared indexed cleanup removes at most 100 expired rows.
         if ($wpdb->query($wpdb->prepare('DELETE FROM %i WHERE expires_at<=%d ORDER BY expires_at ASC LIMIT 100', self::tableName(), time())) === false) {
-            throw new \RuntimeException('Paymos expired event cleanup failed.');
+            throw new EventStorageException('Paymos expired event cleanup failed.');
         }
     }
 
@@ -209,8 +212,16 @@ final class EventStore implements CommitAwareEventStoreInterface
         global $wpdb;
         foreach (array('query', 'prepare', 'get_row') as $method) {
             if (!is_object($wpdb) || !method_exists($wpdb, $method)) {
-                throw new \RuntimeException('Paymos requires durable database event storage.');
+                throw new EventStorageException('Paymos requires durable database event storage.');
             }
+        }
+    }
+
+    private static function assertReadSucceeded()
+    {
+        global $wpdb;
+        if (!empty($wpdb->last_error)) {
+            throw new EventStorageException('Paymos event storage read failed.');
         }
     }
 

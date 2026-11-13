@@ -402,9 +402,18 @@ final class RefundAdapter implements NativeRefundProjectorInterface
                 $this->store->assertTransactionalTables();
                 foreach ($this->store->forPayment($this->store->paymentKey()) as $intent) {
                     if ($this->store->blocksNewIntent($intent)) { throw new \RuntimeException('refund_unresolved'); }
+                    if (!array_key_exists('refund_summary', $invoice) && $intent->mode() === RefundStates::OVERPAYMENT
+                        && $intent->cashState() === RefundStates::COMPLETED) {
+                        $summary['can_refund_overpayment'] = false;
+                    }
                 }
                 foreach ($this->store->externalForPayment($this->store->paymentKey()) as $external) {
                     if ($external['review_reason'] !== null || $external['observation']['mode'] === RefundStates::FULL) { throw new \RuntimeException('refund_external_requires_review'); }
+                    if (!array_key_exists('refund_summary', $invoice)
+                        && $external['observation']['mode'] === RefundStates::OVERPAYMENT
+                        && $external['observation']['status'] === RefundStates::COMPLETED) {
+                        $summary['can_refund_overpayment'] = false;
+                    }
                 }
             } catch (\Throwable $error) { $summary['can_refund_full'] = false; $summary['can_refund_overpayment'] = false; $summary['local_unavailable_reason'] = $error->getMessage(); }
             return $summary;
@@ -423,8 +432,9 @@ final class RefundAdapter implements NativeRefundProjectorInterface
         return array(
             'can_refund_full' => $paid,
             'can_refund_overpayment' => $overpaid,
-            'full_refund_amount' => isset($payment['paid']) && is_string($payment['paid']) ? $payment['paid'] : ($paid ? (string) ($invoice['order']['amount'] ?? '0') : '0'),
-            'overpayment_refund_amount' => $overpaid && isset($payment['paid']) && is_string($payment['paid']) ? $payment['paid'] : '0',
+            // Gross does not establish the remaining cash after earlier refunds.
+            'full_refund_amount' => null,
+            'overpayment_refund_amount' => null,
             'refund_asset' => isset($payment['currency'], $payment['network'])
                 ? array('currency' => $payment['currency'], 'network' => $payment['network']) : null,
         );
@@ -753,7 +763,8 @@ final class RefundAdapter implements NativeRefundProjectorInterface
         // Administrative JavaScript fetches only this protected payment's summary/history.
         $settings = array('order_id' => $id, 'security' => wp_create_nonce('paymos_edd_refund_' . $id),
             'labels' => array_merge(RefundCopy::labels(), array('full' => RefundCopy::text('full_action'),
-                'overpayment' => RefundCopy::text('overpayment_action'))),
+                'overpayment' => RefundCopy::text('overpayment_action'),
+                'server_calculates' => __('Paymos calculates the available refund amount when you submit the request.', 'paymos-easy-digital-downloads'))),
             'tokens' => array('full' => wp_generate_uuid4(), 'overpayment' => wp_generate_uuid4()));
         try {
             RefundIntentStore::install(); $adapter = new self();

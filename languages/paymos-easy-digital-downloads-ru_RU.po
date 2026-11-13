@@ -197,3 +197,51 @@ msgstr "в валюте счёта"
 #: includes/PaymentMapper.php:135
 msgid "Paymos: the customer finished paying for this order after the invoice closed. Check stock, then fulfil the order manually or refund the payment."
 msgstr "Paymos: пришла полная оплата с опозданием. Проверьте склад: выдайте заказ вручную или верните деньги."
+
+
+msgid "Open the approval page"
+msgstr "Открыть страницу подтверждения"
+
+
+msgid "Your browser blocked the approval tab."
+msgstr "Браузер заблокировал вкладку подтверждения."
+
+
+msgid "Code:"
+msgstr "Код:"
+
+
+msgid "Paymos connection failed."
+msgstr "Не удалось подключить Paymos."
+
+
+msgid "Paymos connected. Reloading…"
+msgstr "Paymos подключён. Обновляем страницу…"
+
+
+msgid "Waiting for approval in Paymos…"
+msgstr "Подтвердите подключение в Paymos…"
+
+
+msgid "Starting secure connection…"
+msgstr "Подключаем Paymos…"
+
+
+msgid "Paymos connection was denied or expired."
+msgstr "Подключение отклонено или срок подтверждения истёк."
+
+
+msgid "Access denied."
+msgstr "Нет доступа."
+
+
+msgid "Paymos calculates the available refund amount when you submit the request."
+msgstr "Paymos рассчитает доступную сумму возврата при отправке запроса."
+
+
+msgid "Paymos is waiting for the payment again — a confirmed transfer was rolled back on-chain."
+msgstr "Paymos снова ждёт оплату: сеть отменила подтверждённый перевод."
+
+
+msgid "Paymos received only part of the payment. %1$s %2$s is still outstanding — the payment stays pending until the customer sends the rest."
+msgstr "Paymos получил часть оплаты. Осталось доплатить %1$s %2$s. Платёж останется в ожидании, пока покупатель не отправит остаток."

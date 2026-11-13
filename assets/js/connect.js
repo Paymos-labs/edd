@@ -2,14 +2,16 @@
   'use strict';
   var config = window.PaymosEddConnect;
   if (!config) return;
+  var labels = config.labels;
 
   // Set when the browser refused the approval tab and the merchant has to open it
   // themselves. While set, polling must not overwrite the status line: the link and
   // the user code shown there are the only remaining way to finish the connection.
   var awaitingManualApproval = false;
 
-  function post(action) {
+  function post(action, flowId) {
     var body = new URLSearchParams({ action: action, nonce: config.nonce });
+    if (flowId) body.set('flow_id', flowId);
     return fetch(config.ajaxUrl, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body: body.toString() })
       .then(function (response) { return response.json(); });
   }
@@ -31,24 +33,31 @@
     link.href = url;
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
-    link.textContent = 'Open the approval page';
-    node.appendChild(document.createTextNode('Your browser blocked the approval tab. '));
+    link.textContent = labels.approval_link;
+    node.appendChild(document.createTextNode(labels.blocked_tab + ' '));
     node.appendChild(link);
-    node.appendChild(document.createTextNode(' Code: ' + userCode));
+    node.appendChild(document.createTextNode(' ' + labels.code + ' ' + userCode));
   }
-  function poll(interval) {
+  function terminalError(message) {
+    awaitingManualApproval = false;
+    status(message, true, true);
+    var button = document.getElementById('paymos-edd-connect-button');
+    if (button) button.disabled = false;
+  }
+
+  function poll(interval, flowId) {
     window.setTimeout(function check() {
-      post(config.pollAction).then(function (response) {
-        if (!response.success) { status((response.data && response.data.message) || 'Paymos connection failed.', true); return; }
+      post(config.pollAction, flowId).then(function (response) {
+        if (!response.success) { terminalError((response.data && response.data.message) || labels.failed); return; }
         if (response.data.status === 'connected') {
           awaitingManualApproval = false;
-          status('Paymos connected. Reloading…', false, true);
+          status(labels.connected, false, true);
           window.setTimeout(function () { window.location.reload(); }, 700);
           return;
         }
-        status('Waiting for approval in Paymos…', false);
+        status(labels.waiting, false);
         window.setTimeout(check, response.data.status === 'slow_down' ? interval + 5000 : interval);
-      }).catch(function () { status('Paymos connection failed.', true); });
+      }).catch(function () { terminalError(labels.failed); });
     }, interval);
   }
   document.addEventListener('click', function (event) {
@@ -57,7 +66,7 @@
     event.preventDefault();
     button.disabled = true;
     awaitingManualApproval = false;
-    status('Starting secure connection…', false, true);
+    status(labels.starting, false, true);
 
     // Open the tab now, while the click is still a trusted user activation. Browsers
     // only honour window.open for a few seconds after the gesture, so opening it in
@@ -68,20 +77,19 @@
     if (tab) { try { tab.opener = null; } catch (error) { /* cross-origin hardening only */ } }
 
     post(config.startAction).then(function (response) {
-      if (!response.success) throw new Error((response.data && response.data.message) || 'Paymos connection failed.');
+      if (!response.success) throw new Error((response.data && response.data.message) || labels.failed);
       if (tab && !tab.closed) {
         tab.location = response.data.verification_url;
-        status('Waiting for approval. Code: ' + response.data.user_code, false, true);
+        status(labels.waiting + ' ' + labels.code + ' ' + response.data.user_code, false, true);
       } else {
         manualApproval(response.data.verification_url, response.data.user_code);
       }
       // Polling starts either way: a merchant who opens the link manually must still
       // have their approval picked up.
-      poll(Math.max(1, Number(response.data.interval || 5)) * 1000);
+      poll(Math.max(1, Number(response.data.interval || 5)) * 1000, response.data.flow_id);
     }).catch(function (error) {
       if (tab && !tab.closed) tab.close();
-      status(error.message || 'Paymos connection failed.', true, true);
-      button.disabled = false;
+      terminalError(error.message || labels.failed);
     });
   });
 })();

@@ -45,6 +45,37 @@ final class PaymentRepository
         return is_scalar($value) ? (string) $value : '';
     }
 
+    /** Save the exact old identity before clearing the current invoice generation. */
+    public static function archiveInvoiceBinding($paymentId)
+    {
+        $invoiceId = self::getMeta($paymentId, '_paymos_invoice_id');
+        if ($invoiceId === '') {
+            return;
+        }
+        $binding = array('invoice_id' => $invoiceId);
+        foreach (array('external_order_id', 'project_id', 'environment', 'invoice_amount', 'invoice_currency') as $field) {
+            $value = self::getMeta($paymentId, '_paymos_' . $field);
+            if ($value === '') {
+                throw new \RuntimeException('Paymos previous invoice binding is incomplete.');
+            }
+            $binding[str_replace('invoice_', '', $field)] = $value;
+        }
+        $stored = self::getMeta($paymentId, '_paymos_invoice_history');
+        $history = $stored === '' ? array() : json_decode($stored, true);
+        if (!is_array($history)) {
+            throw new \RuntimeException('Paymos invoice binding history is invalid.');
+        }
+        $history[$invoiceId] = $binding;
+        self::updateMeta($paymentId, '_paymos_invoice_history', json_encode($history, JSON_THROW_ON_ERROR));
+    }
+
+    public static function historicalInvoiceBinding($paymentId, $invoiceId)
+    {
+        $history = json_decode(self::getMeta($paymentId, '_paymos_invoice_history'), true);
+        return is_array($history) && isset($history[$invoiceId]) && is_array($history[$invoiceId])
+            ? $history[$invoiceId] : array();
+    }
+
     public static function updateStatus($paymentId, $status)
     {
         if (!function_exists('edd_update_payment_status')) {

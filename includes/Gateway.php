@@ -284,6 +284,8 @@ final class Gateway
             $invoice = $client->invoices()->create($payload);
             $lock->assertOwned();
             self::assertCreatedInvoice($invoice, PaymentRepository::getMeta($paymentId, '_paymos_invoice_id'));
+            // Bind a recovered response before renewal archives this generation.
+            PaymentRepository::updateMeta($paymentId, '_paymos_invoice_id', $invoice['invoice_id']);
             if (InvoiceRenewal::isRequired($invoice)) {
                 // An idempotent create can return the same closed invoice on a
                 // resumed purchase. Only API evidence and safe close permit a
@@ -445,12 +447,15 @@ final class Gateway
             if (!$closed->isClosed()) {
                 throw new \RuntimeException('Paymos previous invoice needs manual review.');
             }
+            PaymentRepository::updateMeta($paymentId, '_paymos_invoice_id', $oldInvoiceId);
         }
         return self::storeNewIntent($paymentId, $environment, $config, $amount, $currency, $clientId, $lock);
     }
 
     private static function storeNewIntent($paymentId, $environment, array $config, $amount, $currency, $clientId, WordPressOrderLock $lock)
     {
+        $lock->assertOwned();
+        PaymentRepository::archiveInvoiceBinding($paymentId);
         $external = 'edd_' . (int) $paymentId . '_' . bin2hex(random_bytes(16));
         $lock->assertOwned();
         // Durable intent precedes POST, including when the response is lost.

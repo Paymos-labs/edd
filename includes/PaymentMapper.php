@@ -50,7 +50,9 @@ final class PaymentMapper
             // evidence of observation, not evidence of fulfilled downloads.
             $previousStatus = in_array($legacyStatus, array('underpaid', 'expired', 'cancelled'), true) ? $legacyStatus : '';
         }
-        $this->recordEvent($paymentId, $event, $eventType);
+        if ($action !== StatusMapper::ACTION_NOTE_PAID_LATE) {
+            $this->recordEvent($paymentId, $event, $eventType);
+        }
 
         if (PaymentRepository::isProtected($paymentId) && $action !== StatusMapper::ACTION_NOTE_PAID_LATE) {
             if (PaymentRepository::isComplete($paymentId) && $this->wouldRollBackCompletePayment($action)) {

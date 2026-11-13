@@ -137,3 +137,51 @@ msgstr "in der Rechnungswährung"
 #: includes/PaymentMapper.php:135
 msgid "Paymos: the customer finished paying for this order after the invoice closed. Check stock, then fulfil the order manually or refund the payment."
 msgstr "Paymos: Die Zahlung für diese Bestellung ist vollständig, aber verspätet eingegangen. Prüfen Sie den Lagerbestand und liefern Sie die Bestellung von Hand aus — oder erstatten Sie den Betrag."
+
+
+msgid "Open the approval page"
+msgstr "Bestätigungsseite öffnen"
+
+
+msgid "Your browser blocked the approval tab."
+msgstr "Ihr Browser hat den Bestätigungstab blockiert."
+
+
+msgid "Code:"
+msgstr "Code:"
+
+
+msgid "Paymos connection failed."
+msgstr "Die Verbindung mit Paymos ist fehlgeschlagen."
+
+
+msgid "Paymos connected. Reloading…"
+msgstr "Paymos ist verbunden. Seite wird neu geladen…"
+
+
+msgid "Waiting for approval in Paymos…"
+msgstr "Warten auf Bestätigung in Paymos…"
+
+
+msgid "Starting secure connection…"
+msgstr "Sichere Verbindung wird gestartet…"
+
+
+msgid "Paymos connection was denied or expired."
+msgstr "Die Verbindung mit Paymos wurde abgelehnt oder ist abgelaufen."
+
+
+msgid "Access denied."
+msgstr "Zugriff verweigert."
+
+
+msgid "Paymos calculates the available refund amount when you submit the request."
+msgstr "Paymos berechnet den verfügbaren Erstattungsbetrag beim Absenden der Anfrage."
+
+
+msgid "Paymos is waiting for the payment again — a confirmed transfer was rolled back on-chain."
+msgstr "Paymos wartet erneut auf die Zahlung — eine bestätigte Überweisung wurde auf der Blockchain zurückgesetzt."
+
+
+msgid "Paymos received only part of the payment. %1$s %2$s is still outstanding — the payment stays pending until the customer sends the rest."
+msgstr "Paymos hat nur einen Teil der Zahlung erhalten. Es fehlen noch %1$s %2$s — die Zahlung bleibt offen, bis der Kunde den Rest überweist."

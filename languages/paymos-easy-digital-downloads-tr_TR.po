@@ -197,3 +197,51 @@ msgstr "fatura para biriminde"
 #: includes/PaymentMapper.php:135
 msgid "Paymos: the customer finished paying for this order after the invoice closed. Check stock, then fulfil the order manually or refund the payment."
 msgstr "Paymos: Müşteri bu siparişin ödemesini gecikmeyle tamamladı. Stoku kontrol edin, sonra siparişi elle teslim edin ya da ödemeyi iade edin."
+
+
+msgid "Open the approval page"
+msgstr "Onay sayfasını aç"
+
+
+msgid "Your browser blocked the approval tab."
+msgstr "Tarayıcınız onay sekmesini engelledi."
+
+
+msgid "Code:"
+msgstr "Kod:"
+
+
+msgid "Paymos connection failed."
+msgstr "Paymos bağlantısı kurulamadı."
+
+
+msgid "Paymos connected. Reloading…"
+msgstr "Paymos bağlandı. Sayfa yenileniyor…"
+
+
+msgid "Waiting for approval in Paymos…"
+msgstr "Paymos üzerinden onay bekleniyor…"
+
+
+msgid "Starting secure connection…"
+msgstr "Güvenli bağlantı başlatılıyor…"
+
+
+msgid "Paymos connection was denied or expired."
+msgstr "Paymos bağlantısı reddedildi veya onay süresi doldu."
+
+
+msgid "Access denied."
+msgstr "Erişim reddedildi."
+
+
+msgid "Paymos calculates the available refund amount when you submit the request."
+msgstr "Paymos, talebi gönderdiğinizde iade edilebilecek tutarı hesaplar."
+
+
+msgid "Paymos is waiting for the payment again — a confirmed transfer was rolled back on-chain."
+msgstr "Onaylanmış transfer zincirde geri alındı. Paymos yeniden ödeme bekliyor."
+
+
+msgid "Paymos received only part of the payment. %1$s %2$s is still outstanding — the payment stays pending until the customer sends the rest."
+msgstr "Paymos ödemenin yalnızca bir kısmını aldı. Kalan %1$s %2$s müşteri tarafından gönderilene kadar ödeme beklemede kalır."

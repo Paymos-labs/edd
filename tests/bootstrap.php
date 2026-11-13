@@ -224,8 +224,15 @@ function assertContainsValue($needle, $haystack, $message)
     }
 }
 
+class PaymosEddAjaxExit extends RuntimeException {}
+
 function paymos_edd_reset_test_state()
 {
+    $GLOBALS['paymos_edd_ajax_nonce_valid'] = true;
+    $GLOBALS['paymos_edd_ajax_nonce_checks'] = array();
+    $GLOBALS['paymos_edd_terminate_json_errors'] = false;
+    $GLOBALS['paymos_edd_refund_permission'] = true;
+    $GLOBALS['paymos_edd_http_requests'] = array();
     $GLOBALS['paymos_edd_options'] = array('edd_settings' => array('paymos_mode' => 'sandbox'));
     $GLOBALS['paymos_edd_payments'] = array();
     $GLOBALS['paymos_edd_payment_meta'] = array();
@@ -412,6 +419,8 @@ final class FakeEddWpdb
     public $locks = array();
     public $connection = '41';
     public $fail = false;
+    public $failReads = false;
+    public $last_error = '';
     public $beforeInsert;
     public $queries = array();
     public function prepare($query, ...$args) { return serialize(array($query, $args)); }
@@ -434,6 +443,8 @@ final class FakeEddWpdb
     public function get_row($prepared, $mode = null)
     {
         list($sql, $args) = $this->unpack($prepared);
+        $this->last_error = $this->failReads ? 'mock_read_failed' : '';
+        if ($this->failReads) { return null; }
         if ($this->fail) { return null; }
         if (strpos($sql, 'SHOW COLUMNS') === 0) { return array('Field' => 'owner_token'); }
         return isset($this->rows[$args[1]]) ? $this->rows[$args[1]] : null;

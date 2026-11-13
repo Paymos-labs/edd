@@ -199,3 +199,51 @@ msgstr ""
 #: includes/PaymentMapper.php:135
 msgid "Paymos: the customer finished paying for this order after the invoice closed. Check stock, then fulfil the order manually or refund the payment."
 msgstr ""
+
+
+msgid "Open the approval page"
+msgstr ""
+
+
+msgid "Your browser blocked the approval tab."
+msgstr ""
+
+
+msgid "Code:"
+msgstr ""
+
+
+msgid "Paymos connection failed."
+msgstr ""
+
+
+msgid "Paymos connected. Reloading…"
+msgstr ""
+
+
+msgid "Waiting for approval in Paymos…"
+msgstr ""
+
+
+msgid "Starting secure connection…"
+msgstr ""
+
+
+msgid "Paymos connection was denied or expired."
+msgstr ""
+
+
+msgid "Access denied."
+msgstr ""
+
+
+msgid "Paymos calculates the available refund amount when you submit the request."
+msgstr ""
+
+
+msgid "Paymos is waiting for the payment again — a confirmed transfer was rolled back on-chain."
+msgstr ""
+
+
+msgid "Paymos received only part of the payment. %1$s %2$s is still outstanding — the payment stays pending until the customer sends the rest."
+msgstr ""

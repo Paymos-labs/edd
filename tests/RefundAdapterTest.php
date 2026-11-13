@@ -4,6 +4,45 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/fixtures/refund-service.php';
 
+function test_edd_refund_preview_without_server_summary_never_invents_remaining_cash()
+{
+    list($adapter) = edd_refund_harness();
+    $method = new ReflectionMethod($adapter, 'invoiceSummary');
+    foreach (array('paid', 'paid_over') as $status) {
+        $invoice = array('status' => $status, 'order' => array('amount' => '100'),
+            'payment' => array('paid' => '120', 'currency' => 'USDT', 'network' => 'TRON'));
+        $summary = $method->invoke($adapter, $invoice);
+        assertSameValue(null, $summary['full_refund_amount'], 'Gross does not prove the remaining full refund after completed refunds.');
+        assertSameValue(null, $summary['overpayment_refund_amount'], 'Gross must never be displayed as remaining overpayment.');
+    }
+    $server = array('full_refund_amount' => '100', 'overpayment_refund_amount' => '0', 'can_refund_overpayment' => false);
+    assertSameValue($server, $method->invoke($adapter, array('refund_summary' => $server)), 'Fresh server summary remains authoritative after an earlier overpayment refund.');
+}
+
+function test_edd_refund_preview_without_summary_disables_an_already_completed_overpayment()
+{
+    foreach (array('local', 'external') as $origin) {
+        list($adapter, $store, $transport) = edd_refund_harness();
+        $transport->omitSummary = true;
+        assertSameValue(true, $adapter->summary('100')['can_refund_overpayment'], 'A paid-over invoice initially offers an overpayment request.');
+        if ($origin === 'local') {
+            $intent = $adapter->request('100', 'overpayment', 'summary_over_token1');
+            $transport->refunds[$intent->withdrawalId()]['status'] = 'completed';
+            $adapter->reconcile($intent->operationId());
+            assertSameValue('20', $store->getIntent($intent->operationId())->observation()->principalDecimal(), 'Verified completed overpayment is twenty of gross120 and expected100.');
+        } else {
+            $wire = edd_refund_wire('wdl_summary_external', 'overpayment', 'dashboard_refund', 'completed');
+            $transport->refunds[$wire['withdrawal_id']] = $wire;
+            $adapter->callback($wire, 'sandbox');
+        }
+        $summary = $adapter->summary('100');
+        assertSameValue(false, $summary['can_refund_overpayment'], 'Known completed ' . $origin . ' overpayment cannot be offered a second time without a fresh server remainder.');
+        assertSameValue(true, $summary['can_refund_full'], 'A completed overpayment does not prevent refunding the original paid order.');
+        assertSameValue(null, $summary['full_refund_amount'], 'The remaining full cash amount is still calculated by Paymos.');
+        assertSameValue(null, $summary['overpayment_refund_amount'], 'No unsupported remaining amount is invented.');
+    }
+}
+
 function edd_refund_expect_failure(callable $action, $reason)
 {
     try { $action(); } catch (Throwable $error) { assertContainsValue($reason, $error->getMessage(), 'The action must fail for its actual guard.'); return; }
