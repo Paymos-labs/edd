@@ -134,6 +134,20 @@ final class RefundAdapter implements NativeRefundProjectorInterface
         });
     }
 
+    /** Recover a saved AJAX request without creating another intent. */
+    public function recover(string $paymentKey, string $token): ?array
+    {
+        if (!preg_match('/^[a-zA-Z0-9_-]{16,64}$/D', $token)) { throw new \RuntimeException('refund_request_invalid'); }
+        return $this->store->withPaymentLock($paymentKey, function () use ($paymentKey, $token) {
+            $intent = $this->store->findByRequestToken($this->installationId(), $token);
+            if ($intent === null) { return null; }
+            if ($intent->paymentKey() !== $paymentKey) { throw new \RuntimeException('refund_request_conflict'); }
+            $this->assertMapping($this->store->loadOrder(), $intent);
+            $this->reconcile($intent->operationId());
+            return $this->view($this->store->getIntent($intent->operationId()));
+        });
+    }
+
     public function preflight(RefundIntent $intent): ?string
     {
         try {
@@ -746,6 +760,9 @@ final class RefundAdapter implements NativeRefundProjectorInterface
             if ($native) { $input = Gateway::refund_input($id, $input); }
             $adapter = $adapter ?: new self();
             if ($mode === 'summary') { wp_send_json_success($adapter->summary((string) $id)); return; }
+            if ($mode === 'recover' && !$native) {
+                wp_send_json_success(array('paymos_refund' => $adapter->recover((string) $id, $token))); return;
+            }
             $intent = $adapter->request((string) $id, $mode, $token, $input);
             if ($native) { wp_send_json_error(array('message' => RefundCopy::message($adapter->view($intent)), 'paymos_refund' => $adapter->view($intent))); return; }
             wp_send_json_success(array('paymos_refund' => $adapter->view($intent)));

@@ -14,14 +14,24 @@
                     mode: mode, paymos_refund_token: state.tokens[mode]}).done(function (response) {
                     if (response.data && response.data.paymos_refund) { window.location.reload(); return; }
                     status.text(response.data && response.data.message ? response.data.message : labels.request_failed); refresh();
-                }).fail(function () { status.text(labels.unknown || ''); });
+                }).fail(function (xhr) {
+                    var data = xhr.responseJSON && xhr.responseJSON.data;
+                    status.text(data && data.message ? data.message : (labels.unknown || ''));
+                    // Recover only an existing intent before permitting another attempt.
+                    $.post(ajaxurl, {action: 'paymos_edd_refund', order_id: state.order_id, security: state.security,
+                        mode: 'recover', paymos_refund_token: state.tokens[mode]})
+                        .done(function (response) {
+                            if (response.data && response.data.paymos_refund) { window.location.reload(); return; }
+                            refresh();
+                        }).fail(function () { refresh(); });
+                });
                 // Keep the same token after a timeout. A new click recovers this exact intent.
             });
         });
         function refresh() {
             $.post(ajaxurl, {action: 'paymos_edd_refund', order_id: state.order_id, security: state.security, mode: 'summary'})
                 .done(function (response) {
-                    if (!response.success) { status.text(labels.request_failed); return; }
+                    if (!response.success) { status.text(response.data && response.data.message ? response.data.message : labels.request_failed); return; }
                     var value = response.data, asset = value.refund_asset || {};
                     var amountsKnown = value.full_refund_amount != null && value.overpayment_refund_amount != null;
                     summary.text((amountsKnown ? (labels.full) + ': ' + value.full_refund_amount + ' / '
@@ -30,6 +40,9 @@
                         + (value.sender_address ? ' → ' + value.sender_address : ''));
                     buttons.full.prop('disabled', value.can_refund_full !== true);
                     buttons.overpayment.prop('disabled', value.can_refund_overpayment !== true);
+                }).fail(function (xhr) {
+                    var data = xhr.responseJSON && xhr.responseJSON.data;
+                    if (!status.text()) { status.text(data && data.message ? data.message : labels.request_failed); }
                 });
         }
         $.ajaxPrefilter(function (options) {
