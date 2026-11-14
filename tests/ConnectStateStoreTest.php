@@ -44,7 +44,8 @@ function test_edd_r31_connect_stale_poll_cannot_clear_or_install_credentials()
                 return array('response' => array('code' => 400), 'body' => '{"error":"access_denied"}', 'headers' => array());
             }
             $credentials = paymos_edd_credentials();
-            $credentials['sandbox']['project_id'] = 'stale-project';
+            // A valid project ID: the replaced flow, not credential validation, must refuse it.
+            $credentials['sandbox']['project_id'] = 'prj_stale';
             return array('response' => array('code' => 200), 'headers' => array(),
                 'body' => json_encode(array('paymos_config' => array('plugin' => 'easy-digital-downloads',
                     'source_url' => rtrim(home_url('/'), '/'), 'environments' => $credentials))));
@@ -53,8 +54,62 @@ function test_edd_r31_connect_stale_poll_cannot_clear_or_install_credentials()
         assertSameValue($flowB, ConnectStateStore::load()['flow_id'], 'A stale poll must preserve flow B.');
         assertSameValue('device-B', ConnectStateStore::load()['device_code'], 'B keeps its device code.');
         assertSameValue($original, PaymosEasyDigitalDownloads\CredentialStore::load(), 'Stale success must not install A credentials.');
-        assertSameValue(false, $GLOBALS['paymos_edd_refund_json']['success'], 'Stale poll must report failure.');
+        if ($result === 'transport') {
+            assertSameValue(array('success' => true, 'data' => array('status' => 'retry', 'message' => 'connection lost'), 'status' => null),
+                $GLOBALS['paymos_edd_refund_json'], 'A lost connection must ask the page to poll again.');
+        } else {
+            assertSameValue(false, $GLOBALS['paymos_edd_refund_json']['success'], 'Stale poll must report failure.');
+        }
     }
+}
+
+function test_edd_connect_transport_error_keeps_the_flow()
+{
+    paymos_edd_reset_test_state();
+    $GLOBALS['paymos_edd_http_requests'] = array();
+    $flow = ConnectStateStore::save(paymos_edd_connect_state());
+    $_POST = array('flow_id' => $flow);
+    $GLOBALS['paymos_edd_remote_handler'] = static function () { throw new RuntimeException('connection lost'); };
+    PaymosEasyDigitalDownloads\ConnectController::poll();
+    assertSameValue(1, count($GLOBALS['paymos_edd_http_requests']), 'The poll must reach Paymos once.');
+    assertSameValue(array('success' => true, 'data' => array('status' => 'retry', 'message' => 'connection lost'), 'status' => null),
+        $GLOBALS['paymos_edd_refund_json'], 'A transport error must ask the page to poll again with its reason.');
+    assertSameValue($flow, ConnectStateStore::load()['flow_id'], 'A transport error must keep the connection request.');
+    assertSameValue('device-A', ConnectStateStore::load()['device_code'], 'The same device code is polled again.');
+}
+
+function test_edd_connect_refusal_or_foreign_store_clears_the_flow()
+{
+    foreach (array(
+        'denied' => array(400, '{"error":"access_denied"}', 409),
+        'foreign' => array(200, json_encode(array('paymos_config' => array('plugin' => 'easy-digital-downloads',
+            'source_url' => 'https://other.example.test', 'environments' => paymos_edd_credentials()))), 400),
+    ) as $case => list($code, $body, $status)) {
+        paymos_edd_reset_test_state();
+        $_POST = array('flow_id' => ConnectStateStore::save(paymos_edd_connect_state()));
+        $GLOBALS['paymos_edd_remote_handler'] = static function () use ($code, $body) {
+            return array('response' => array('code' => $code), 'body' => $body, 'headers' => array());
+        };
+        PaymosEasyDigitalDownloads\ConnectController::poll();
+        assertSameValue(false, $GLOBALS['paymos_edd_refund_json']['success'], $case . ': the poll must fail.');
+        assertSameValue($status, $GLOBALS['paymos_edd_refund_json']['status'], $case . ': unexpected HTTP status.');
+        assertSameValue(array(), ConnectStateStore::load(), $case . ': the connection request must be cleared.');
+    }
+}
+
+function test_edd_connect_expired_request_ends_polling()
+{
+    paymos_edd_reset_test_state();
+    $GLOBALS['paymos_edd_http_requests'] = array();
+    $state = paymos_edd_connect_state();
+    $state['started_at'] = time() - 601;
+    $_POST = array('flow_id' => ConnectStateStore::save($state));
+    $GLOBALS['paymos_edd_remote_handler'] = static function () { throw new RuntimeException('connection lost'); };
+    PaymosEasyDigitalDownloads\ConnectController::poll();
+    assertSameValue(array(), $GLOBALS['paymos_edd_http_requests'], 'An expired request must not poll Paymos.');
+    assertSameValue(false, $GLOBALS['paymos_edd_refund_json']['success'], 'An expired request must end polling.');
+    assertSameValue(400, $GLOBALS['paymos_edd_refund_json']['status'], 'An expired request must answer 400.');
+    assertSameValue(array(), ConnectStateStore::load(), 'An expired request must be deleted.');
 }
 
 function test_edd_r31_connect_rejects_missing_or_stale_flow_before_http()

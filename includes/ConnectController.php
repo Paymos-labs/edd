@@ -86,7 +86,15 @@ final class ConnectController
                 || !hash_equals($state['flow_id'], $flowId)) {
                 throw new \RuntimeException('No active Paymos connection request.');
             }
-            $result = self::client()->poll((string) $state['device_code']);
+            try {
+                $result = self::client()->poll((string) $state['device_code']);
+            } catch (\Throwable $exception) {
+                // A network or server failure says nothing about the device code: keep the request
+                // and let the page poll again until Paymos answers or the request expires locally.
+                Logger::error('Paymos connection poll failed, retrying: ' . $exception->getMessage());
+                wp_send_json_success(array('status' => 'retry', 'message' => $exception->getMessage()));
+                return;
+            }
             if ($result['status'] === 'connected') {
                 if ($result['plugin'] !== 'edd'
                     && $result['plugin'] !== 'easy-digital-downloads') {
