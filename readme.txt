@@ -4,7 +4,7 @@ Tags: payments, stablecoin, usdt, usdc, easy digital downloads
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.7.7
+Stable tag: 1.7.8
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -46,6 +46,9 @@ In a non-autoloaded WordPress option encrypted with AES-256-GCM using installati
 
 == Changelog ==
 
+= 1.7.8 =
+* chore: rebuild canonical CMS package
+
 = 1.7.7 =
 * fix(plugins): guard PHP 8.5 setAccessible deprecations and Drupal SDK path in tests
 * fix(refunds): decouple refund RBAC from Withdraw and unify 12 CMS refund adapters
@@ -78,8 +81,5 @@ In a non-autoloaded WordPress option encrypted with AES-256-GCM using installati
 * chore: rebuild canonical CMS package
 
 = 1.6.5 =
-* chore: rebuild canonical CMS package
-
-= 1.6.4 =
 * chore: rebuild canonical CMS package
 
