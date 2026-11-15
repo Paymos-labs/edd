@@ -126,7 +126,12 @@ final class RefundAdapter implements NativeRefundProjectorInterface
                 'project_id' => $this->meta($order, '_paymos_project_id'), 'environment' => $this->environment($order),
                 'mode' => $mode, 'full_draft' => $draft,
             ));
-            if (($reason = $this->preflight($intent)) !== null) { throw new \RuntimeException(esc_html($reason)); }
+            if (($reason = $this->preflight($intent)) !== null) {
+                $message = $reason === \Paymos\Plugin\NativeRefundProjectorInterface::PREFLIGHT_RETRY
+                    ? 'refund_preflight_unavailable'
+                    : $reason;
+                throw new \RuntimeException(esc_html($message));
+            }
             $intent = $this->store->createIntent($intent); // Commits before coordinator HTTP.
             $this->coordinator($intent)->submit($intent->operationId());
             $this->reconcile($intent->operationId());
@@ -158,7 +163,16 @@ final class RefundAdapter implements NativeRefundProjectorInterface
             $this->assertMapping($order, $intent);
             $this->assertOriginalPaid($order);
             if ($intent->fullDraft() !== null) { $this->assertDraft($order, $intent->fullDraft()); }
-            $invoice = $this->client($intent->environment())->invoices()->get($intent->invoiceId());
+            try {
+                $invoice = $this->client($intent->environment())->invoices()->get($intent->invoiceId());
+            } catch (\Paymos\Exception\ApiException $error) {
+                if ($error->statusCode() === 429 || $error->statusCode() >= 500) {
+                    return \Paymos\Plugin\NativeRefundProjectorInterface::PREFLIGHT_RETRY;
+                }
+                return $error->errorCode() !== '' ? $error->errorCode() : $error->getMessage();
+            } catch (\RuntimeException $error) {
+                return \Paymos\Plugin\NativeRefundProjectorInterface::PREFLIGHT_RETRY;
+            }
             $this->store->assertOwned();
             $this->assertInvoice($invoice, $order);
             $fresh = $this->store->loadOrder();
@@ -166,6 +180,9 @@ final class RefundAdapter implements NativeRefundProjectorInterface
             $this->assertOriginalPaid($fresh);
             if ($intent->fullDraft() !== null) { $this->assertDraft($fresh, $intent->fullDraft()); }
             $summary = $this->invoiceSummary($invoice);
+            if (!array_key_exists('refund_summary', $invoice)) {
+                $summary = $this->suppressCompletedOverpayment($summary, $intent->paymentKey());
+            }
             $flag = $intent->mode() === RefundStates::FULL ? 'can_refund_full' : 'can_refund_overpayment';
             if (!isset($summary[$flag]) || $summary[$flag] !== true) {
                 return 'refund_server_not_eligible';
@@ -416,22 +433,32 @@ final class RefundAdapter implements NativeRefundProjectorInterface
                 $this->store->assertTransactionalTables();
                 foreach ($this->store->forPayment($this->store->paymentKey()) as $intent) {
                     if ($this->store->blocksNewIntent($intent)) { throw new \RuntimeException('refund_unresolved'); }
-                    if (!array_key_exists('refund_summary', $invoice) && $intent->mode() === RefundStates::OVERPAYMENT
-                        && $intent->cashState() === RefundStates::COMPLETED) {
-                        $summary['can_refund_overpayment'] = false;
-                    }
                 }
                 foreach ($this->store->externalForPayment($this->store->paymentKey()) as $external) {
                     if ($external['review_reason'] !== null || $external['observation']['mode'] === RefundStates::FULL) { throw new \RuntimeException('refund_external_requires_review'); }
-                    if (!array_key_exists('refund_summary', $invoice)
-                        && $external['observation']['mode'] === RefundStates::OVERPAYMENT
-                        && $external['observation']['status'] === RefundStates::COMPLETED) {
-                        $summary['can_refund_overpayment'] = false;
-                    }
+                }
+                if (!array_key_exists('refund_summary', $invoice)) {
+                    $summary = $this->suppressCompletedOverpayment($summary, $this->store->paymentKey());
                 }
             } catch (\Throwable $error) { $summary['can_refund_full'] = false; $summary['can_refund_overpayment'] = false; $summary['local_unavailable_reason'] = $error->getMessage(); }
             return $summary;
         });
+    }
+
+    private function suppressCompletedOverpayment(array $summary, string $paymentKey): array
+    {
+        foreach ($this->store->forPayment($paymentKey) as $intent) {
+            if ($intent->mode() === RefundStates::OVERPAYMENT && $intent->cashState() === RefundStates::COMPLETED) {
+                $summary['can_refund_overpayment'] = false;
+            }
+        }
+        foreach ($this->store->externalForPayment($paymentKey) as $external) {
+            if ($external['observation']['mode'] === RefundStates::OVERPAYMENT
+                && $external['observation']['status'] === RefundStates::COMPLETED) {
+                $summary['can_refund_overpayment'] = false;
+            }
+        }
+        return $summary;
     }
 
     private function invoiceSummary(array $invoice): array

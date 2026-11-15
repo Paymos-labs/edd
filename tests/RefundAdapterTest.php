@@ -527,3 +527,150 @@ function test_edd_refund_native_encoded_form_preserves_the_wire_and_native_full_
         assertSameValue(0, count(edd_get_order_refunds(100)), 'Pending crypto cash never becomes a premature native refund.');
     } finally { $_POST = $original; }
 }
+
+final class EddRefundFaultTransport implements \Paymos\Http\TransportInterface
+{
+    public $inner;
+    public $invoiceFailure = null;
+    public $requests = array();
+
+    public function __construct($inner) { $this->inner = $inner; }
+
+    public function request($method, $url, array $headers, $body, $timeoutSeconds)
+    {
+        $this->requests[] = array($method, $url, $body);
+        $path = (string) parse_url($url, PHP_URL_PATH);
+        if ($method === 'GET' && strpos($path, '/v1/invoices/') === 0 && $this->invoiceFailure !== null) {
+            $failure = $this->invoiceFailure;
+            $this->invoiceFailure = null;
+            if ($failure instanceof \Throwable) { throw $failure; }
+            $status = (int) $failure;
+            return new \Paymos\Http\HttpResponse($status, json_encode(array(
+                'type' => 'https://api.paymos.io/errors/' . ($status === 404 ? 'not-found' : 'validation'),
+                'title' => $status === 404 ? 'Not Found' : 'Bad Request',
+                'status' => $status,
+                'detail' => 'Simulated API detail',
+                'code' => $status === 404 ? 'invoice_not_found' : 'validation_error',
+            )), array('content-type' => 'application/problem+json'));
+        }
+        return $this->inner->request($method, $url, $headers, $body, $timeoutSeconds);
+    }
+}
+
+function edd_refund_fault_harness()
+{
+    list(, $store, $inner) = edd_refund_harness();
+    $fault = new EddRefundFaultTransport($inner);
+    $client = new \Paymos\Client(new \Paymos\ClientConfig('pk_test', 'sk_test', 'https://api.paymos.test', 30), $fault);
+    $config = array('api_key' => 'pk_test', 'project_id' => 'prj_123', 'capabilities' => array('invoice_refunds_v1'), 'refund_contract_version' => 1, 'refunds_enabled' => false);
+    $adapter = new \PaymosEasyDigitalDownloads\RefundAdapter(
+        $store,
+        static function () use ($client) { return $client; },
+        static function ($environment) use ($config) { return $environment === 'sandbox' ? $config : array(); }
+    );
+    return array($adapter, $store, $inner, $fault);
+}
+
+function test_edd_refund_preflight_transient_failures_return_retry_and_reject_before_intent()
+{
+    foreach (array(429, 502, new \RuntimeException('read timeout')) as $idx => $failure) {
+        list($adapter, $store, $inner, $fault) = edd_refund_fault_harness();
+        $draftMethod = new \ReflectionMethod($adapter, 'draft');
+        if (\PHP_VERSION_ID < 80100) {
+            $draftMethod->setAccessible(true);
+        }
+        $draft = $store->withPaymentLock('100', static function () use ($adapter, $store, $draftMethod) {
+            return $draftMethod->invoke($adapter, $store->loadOrder());
+        });
+        $intent = new \Paymos\Plugin\RefundIntent(array(
+            'operation_id' => wp_generate_uuid4(),
+            'request_token' => 'edd_direct_pf_tok_' . $idx,
+            'installation_id' => '00000000-0000-4000-8000-000000000001',
+            'platform' => 'edd',
+            'native_payment_key' => '100',
+            'invoice_id' => 'inv_123',
+            'project_id' => 'prj_123',
+            'environment' => 'sandbox',
+            'mode' => \Paymos\Plugin\RefundStates::FULL,
+            'full_draft' => $draft,
+        ));
+        $fault->invoiceFailure = $failure;
+        $reason = $store->withPaymentLock('100', static function () use ($adapter, $intent) {
+            return $adapter->preflight($intent);
+        });
+        assertSameValue(\Paymos\Plugin\NativeRefundProjectorInterface::PREFLIGHT_RETRY, $reason, 'Transient invoice failure returns PREFLIGHT_RETRY.');
+
+        $saved = $store->withPaymentLock('100', static function () use ($store, $intent) {
+            return $store->createIntent($intent);
+        });
+        $fault->invoiceFailure = $failure;
+        $adapter->reconcile($saved->operationId());
+        assertSameValue(\Paymos\Plugin\RefundStates::NOT_SUBMITTED, $store->getIntent($saved->operationId())->cashState(), 'Coordinator keeps NOT_SUBMITTED on PREFLIGHT_RETRY.');
+        assertSameValue(array(), edd_refund_posts($inner), 'No refund POST before successful preflight.');
+
+        $adapter->reconcile($saved->operationId());
+        assertSameValue(\Paymos\Plugin\RefundStates::CREATED, $store->getIntent($saved->operationId())->cashState(), 'Retry succeeds once invoice API recovers.');
+
+        list($reqAdapter, $reqStore, $reqInner, $reqFault) = edd_refund_fault_harness();
+        $reqFault->invoiceFailure = $failure;
+        edd_refund_expect_failure(static function () use ($reqAdapter, $idx) {
+            $reqAdapter->request('100', 'full', 'edd_retry_tok_' . str_pad((string) $idx, 4, '0', STR_PAD_LEFT));
+        }, 'refund_preflight_unavailable');
+        assertSameValue(array(), $reqStore->intents, 'request() maps PREFLIGHT_RETRY to refund_preflight_unavailable without creating an intent.');
+        assertSameValue(array(), edd_refund_posts($reqInner), 'No refund POST on unavailable preflight.');
+
+        $created = $reqAdapter->request('100', 'full', 'edd_retry_tok_' . str_pad((string) $idx, 4, '0', STR_PAD_LEFT));
+        assertSameValue(\Paymos\Plugin\RefundStates::CREATED, $created->cashState(), 'Request succeeds once preflight read recovers.');
+    }
+}
+
+function test_edd_refund_preflight_deterministic_api_errors_and_completed_overpayment_without_summary()
+{
+    foreach (array(404 => 'invoice_not_found', 400 => 'validation_error') as $status => $expectedCode) {
+        list($adapter, $store, $inner, $fault) = edd_refund_fault_harness();
+        $draftMethod = new \ReflectionMethod($adapter, 'draft');
+        if (\PHP_VERSION_ID < 80100) {
+            $draftMethod->setAccessible(true);
+        }
+        $draft = $store->withPaymentLock('100', static function () use ($adapter, $store, $draftMethod) {
+            return $draftMethod->invoke($adapter, $store->loadOrder());
+        });
+        $fault->invoiceFailure = $status;
+        edd_refund_expect_failure(static function () use ($adapter, $status) {
+            $adapter->request('100', 'full', 'edd_err_tok_' . str_pad((string) $status, 6, '0', STR_PAD_LEFT));
+        }, $expectedCode);
+        assertSameValue(array(), $store->intents, 'Deterministic API refusal does not create an intent from request().');
+        assertSameValue(array(), edd_refund_posts($inner), 'Deterministic refusal sends no POST.');
+
+        $saved = $store->withPaymentLock('100', static function () use ($store, $status, $draft) {
+            return $store->createIntent(new \Paymos\Plugin\RefundIntent(array(
+                'operation_id' => wp_generate_uuid4(),
+                'request_token' => 'edd_coord_err_' . $status,
+                'installation_id' => '00000000-0000-4000-8000-000000000001',
+                'platform' => 'edd',
+                'native_payment_key' => '100',
+                'invoice_id' => 'inv_123',
+                'project_id' => 'prj_123',
+                'environment' => 'sandbox',
+                'mode' => \Paymos\Plugin\RefundStates::FULL,
+                'full_draft' => $draft,
+            )));
+        });
+        $fault->invoiceFailure = $status;
+        $adapter->reconcile($saved->operationId());
+        $after = $store->getIntent($saved->operationId());
+        assertSameValue(\Paymos\Plugin\RefundStates::REVIEW, $after->cashState(), 'Deterministic API refusal moves saved intent to review.');
+        assertSameValue($expectedCode, $after->toArray()['review_reason'], 'Review preserves API errorCode rather than generic detail.');
+    }
+
+    list($adapter, $store, $transport) = edd_refund_harness();
+    $transport->omitSummary = true;
+    $first = $adapter->request('100', 'overpayment', 'edd_over_first_001');
+    $transport->refunds[$first->withdrawalId()]['status'] = 'completed';
+    $adapter->reconcile($first->operationId());
+    $postsBefore = count(edd_refund_posts($transport));
+    edd_refund_expect_failure(static function () use ($adapter) {
+        $adapter->request('100', 'overpayment', 'edd_over_second_02');
+    }, 'refund_server_not_eligible');
+    assertSameValue($postsBefore, count(edd_refund_posts($transport)), 'Repeat overpayment request is blocked before POST when refund_summary is omitted.');
+}
