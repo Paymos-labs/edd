@@ -8,6 +8,7 @@ use Paymos\Client;
 use Paymos\ClientConfig;
 use Paymos\Exception\ApiException;
 use Paymos\Plugin\AmountGuard;
+use Paymos\Plugin\InvoicePresentation;
 use Paymos\Plugin\InvoiceReplacement;
 use Paymos\Plugin\InvoiceRenewal;
 use Paymos\Plugin\WordPressOrderLock;
@@ -17,6 +18,7 @@ defined('ABSPATH') || exit;
 final class Gateway
 {
     public const ID = 'paymos';
+    public const CREATION_PRODUCTS_META = '_paymos_creation_products';
 
     /** @var callable|null */
     private static $clientFactory;
@@ -267,7 +269,8 @@ final class Gateway
             if ($amount === '0' || $amount[0] === '-' || $currency === '') {
                 throw new \RuntimeException('Paymos purchase amount or currency is invalid.');
             }
-            $externalOrderId = self::prepareIntent($paymentId, $environment, $config, $amount, $currency, self::clientId($purchaseData), $lock);
+            $products = self::extractProducts($purchaseData);
+            $externalOrderId = self::prepareIntent($paymentId, $environment, $config, $amount, $currency, self::clientId($purchaseData), $products, $lock);
             $payload = array(
                 'project_id' => (string) $config['project_id'],
                 'amount' => $amount,
@@ -278,6 +281,10 @@ final class Gateway
             $clientId = PaymentRepository::getMeta($paymentId, '_paymos_client_id');
             if ($clientId !== '') {
                 $payload['client_id'] = $clientId;
+            }
+            $storedProducts = self::decodeCreationProducts(PaymentRepository::getMeta($paymentId, self::CREATION_PRODUCTS_META));
+            if ($storedProducts !== null) {
+                $payload['products'] = $storedProducts;
             }
 
             $client = self::client($config, $environment);
@@ -295,8 +302,14 @@ final class Gateway
                 if (!$closed->isClosed()) {
                     throw new \RuntimeException('Paymos previous invoice needs manual review.');
                 }
-                $externalOrderId = self::storeNewIntent($paymentId, $environment, $config, $amount, $currency, $clientId, $lock);
+                $externalOrderId = self::storeNewIntent($paymentId, $environment, $config, $amount, $currency, $clientId, $products, $lock);
                 $payload['external_order_id'] = $externalOrderId;
+                $renewedProducts = self::decodeCreationProducts(PaymentRepository::getMeta($paymentId, self::CREATION_PRODUCTS_META));
+                if ($renewedProducts !== null) {
+                    $payload['products'] = $renewedProducts;
+                } else {
+                    unset($payload['products']);
+                }
                 $invoice = $client->invoices()->create($payload);
                 $lock->assertOwned();
                 self::assertCreatedInvoice($invoice, '');
@@ -412,7 +425,10 @@ final class Gateway
         return function_exists('edd_get_option') ? edd_get_option($key, $default) : $default;
     }
 
-    private static function prepareIntent($paymentId, $environment, array $config, $amount, $currency, $clientId, WordPressOrderLock $lock)
+    /**
+     * @param array<int, array<string, mixed>>|null $products
+     */
+    private static function prepareIntent($paymentId, $environment, array $config, $amount, $currency, $clientId, ?array $products, WordPressOrderLock $lock)
     {
         $existing = PaymentRepository::getMeta($paymentId, '_paymos_external_order_id');
         $same = $existing !== ''
@@ -439,6 +455,10 @@ final class Gateway
                 if ($oldClientId !== '') {
                     $oldPayload['client_id'] = $oldClientId;
                 }
+                $oldProducts = self::decodeCreationProducts(PaymentRepository::getMeta($paymentId, self::CREATION_PRODUCTS_META));
+                if ($oldProducts !== null) {
+                    $oldPayload['products'] = $oldProducts;
+                }
                 $old = $oldClient->invoices()->create($oldPayload);
                 $oldInvoiceId = isset($old['invoice_id']) && is_string($old['invoice_id']) ? $old['invoice_id'] : '';
             }
@@ -449,10 +469,13 @@ final class Gateway
             }
             PaymentRepository::updateMeta($paymentId, '_paymos_invoice_id', $oldInvoiceId);
         }
-        return self::storeNewIntent($paymentId, $environment, $config, $amount, $currency, $clientId, $lock);
+        return self::storeNewIntent($paymentId, $environment, $config, $amount, $currency, $clientId, $products, $lock);
     }
 
-    private static function storeNewIntent($paymentId, $environment, array $config, $amount, $currency, $clientId, WordPressOrderLock $lock)
+    /**
+     * @param array<int, array<string, mixed>>|null $products
+     */
+    private static function storeNewIntent($paymentId, $environment, array $config, $amount, $currency, $clientId, ?array $products, WordPressOrderLock $lock)
     {
         $lock->assertOwned();
         PaymentRepository::archiveInvoiceBinding($paymentId);
@@ -466,10 +489,213 @@ final class Gateway
         PaymentRepository::updateMeta($paymentId, '_paymos_invoice_currency', $currency);
         PaymentRepository::updateMeta($paymentId, '_paymos_invoice_id', '');
         PaymentRepository::updateMeta($paymentId, '_paymos_client_id', (string) $clientId);
+        PaymentRepository::updateMeta($paymentId, self::CREATION_PRODUCTS_META, self::encodeCreationProducts($products));
         PaymentRepository::updateMeta($paymentId, '_paymos_applied_status', '');
         PaymentRepository::updateMeta($paymentId, '_paymos_last_status', '');
         PaymentRepository::updateMeta($paymentId, '_paymos_creation_intent', 'pending');
         return $external;
+    }
+
+    /**
+     * Encode normalized products as pure ASCII base64(JSON) safe for WordPress post meta.
+     *
+     * @param array<int, array<string, mixed>>|null $products
+     */
+    private static function encodeCreationProducts(?array $products): string
+    {
+        if ($products === null || $products === array()) {
+            return '';
+        }
+
+        return base64_encode(json_encode($products, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+    }
+
+    /**
+     * Strict decoder shared by Gateway and WebhookController for `_paymos_creation_products`.
+     *
+     * @param mixed $encoded
+     * @return array<int, array<string, mixed>>|null
+     */
+    public static function decodeCreationProducts($encoded): ?array
+    {
+        if (!is_string($encoded) || $encoded === '') {
+            return null;
+        }
+        if (preg_match('/\A[A-Za-z0-9+\/]+={0,2}\z/', $encoded) !== 1 || (strlen($encoded) % 4) !== 0) {
+            return null;
+        }
+        $json = base64_decode($encoded, true);
+        if (!is_string($json) || $json === '') {
+            return null;
+        }
+        $decoded = json_decode($json, true);
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+            return null;
+        }
+
+        $count = count($decoded);
+        if ($count < 1 || $count > InvoicePresentation::MAX_ITEMS || array_values($decoded) !== $decoded) {
+            return null;
+        }
+
+        $allowedKeys = array('title', 'quantity', 'unit_amount', 'description', 'image_url');
+        foreach ($decoded as $item) {
+            if (!is_array($item) || array_diff(array_keys($item), $allowedKeys)) {
+                return null;
+            }
+            if (!isset($item['title']) || !is_string($item['title']) || preg_match('//u', $item['title']) !== 1
+                || trim($item['title']) === '' || strpos($item['title'], "\0") !== false) {
+                return null;
+            }
+            if (!isset($item['quantity']) || !is_int($item['quantity']) || $item['quantity'] < 1 || $item['quantity'] > 2147483647) {
+                return null;
+            }
+            if (!isset($item['unit_amount']) || !is_string($item['unit_amount']) || strlen($item['unit_amount']) > 39
+                || preg_match('/\A(?:0|[1-9][0-9]{0,19})(?:\.[0-9]{1,18})?\z/', $item['unit_amount']) !== 1) {
+                return null;
+            }
+            if (array_key_exists('description', $item) && (!is_string($item['description']) || preg_match('//u', $item['description']) !== 1
+                || trim($item['description']) === '' || strpos($item['description'], "\0") !== false)) {
+                return null;
+            }
+            if (array_key_exists('image_url', $item) && (!is_string($item['image_url']) || preg_match('//u', $item['image_url']) !== 1
+                || preg_match('/\Ahttps:\/\//i', $item['image_url']) !== 1 || strpos($item['image_url'], "\0") !== false)) {
+                return null;
+            }
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * Extract normalized product line items from EDD purchase data or return null.
+     *
+     * @param array<string, mixed> $purchaseData
+     * @return array<int, array<string, mixed>>|null
+     */
+    private static function extractProducts(array $purchaseData): ?array
+    {
+        if (!isset($purchaseData['cart_details']) || !is_iterable($purchaseData['cart_details'])) {
+            return null;
+        }
+
+        $candidates = array();
+        foreach ($purchaseData['cart_details'] as $item) {
+            if (!is_array($item)) {
+                return null;
+            }
+            if (isset($item['type']) && is_string($item['type'])
+                && in_array(strtolower(trim($item['type'])), array('shipping', 'discount', 'tax', 'fee', 'note'), true)) {
+                continue;
+            }
+
+            $title = isset($item['name']) && is_string($item['name']) ? $item['name'] : null;
+            if ($title !== null && function_exists('strip_shortcodes')) {
+                $title = strip_shortcodes($title);
+            }
+
+            $quantity = array_key_exists('quantity', $item) ? $item['quantity'] : null;
+            $unitAmount = self::formatCartItemUnitAmount($item);
+
+            $downloadId = self::cartItemDownloadId($item);
+            $description = self::cartItemDescription($item, $downloadId);
+            $imageUrl = self::cartItemImageUrl($item, $downloadId);
+
+            $candidates[] = array(
+                'title' => $title,
+                'description' => $description,
+                'image_url' => $imageUrl,
+                'quantity' => $quantity,
+                'unit_amount' => $unitAmount,
+            );
+        }
+
+        return InvoicePresentation::normalizeProducts($candidates);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private static function formatCartItemUnitAmount(array $item): ?string
+    {
+        if (!array_key_exists('item_price', $item)) {
+            return null;
+        }
+        $raw = $item['item_price'];
+        if (is_string($raw)) {
+            return trim($raw);
+        }
+        if (is_int($raw)) {
+            return (string) $raw;
+        }
+        if (is_float($raw)) {
+            if (!is_finite($raw)) {
+                return null;
+            }
+            $formatted = (string) $raw;
+            if (stripos($formatted, 'e') !== false) {
+                $formatted = rtrim(rtrim(sprintf('%.18F', $raw), '0'), '.');
+            }
+            return $formatted;
+        }
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private static function cartItemDownloadId(array $item): int
+    {
+        if (isset($item['id']) && is_numeric($item['id'])) {
+            return (int) $item['id'];
+        }
+        if (isset($item['item_number']['id']) && is_numeric($item['item_number']['id'])) {
+            return (int) $item['item_number']['id'];
+        }
+        return 0;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private static function cartItemDescription(array $item, int $downloadId): ?string
+    {
+        $description = null;
+        if (isset($item['description']) && is_string($item['description'])) {
+            $description = $item['description'];
+        } elseif ($downloadId > 0 && function_exists('get_post')) {
+            $post = get_post($downloadId);
+            if (is_object($post)) {
+                if (isset($post->post_excerpt) && is_string($post->post_excerpt) && trim($post->post_excerpt) !== '') {
+                    $description = $post->post_excerpt;
+                } elseif (isset($post->post_content) && is_string($post->post_content) && trim($post->post_content) !== '') {
+                    $description = $post->post_content;
+                }
+            }
+        }
+
+        if ($description !== null && function_exists('strip_shortcodes')) {
+            $description = strip_shortcodes($description);
+        }
+
+        return $description;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private static function cartItemImageUrl(array $item, int $downloadId): ?string
+    {
+        if (isset($item['image_url']) && is_string($item['image_url'])) {
+            return $item['image_url'];
+        }
+        if ($downloadId > 0 && function_exists('get_the_post_thumbnail_url')) {
+            $url = get_the_post_thumbnail_url($downloadId, 'medium');
+            if (is_string($url) && $url !== '') {
+                return $url;
+            }
+        }
+        return null;
     }
 
     private static function assertCreatedInvoice(array $invoice, $expectedId)

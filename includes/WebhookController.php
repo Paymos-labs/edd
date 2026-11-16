@@ -162,6 +162,10 @@ final class WebhookController
             if ($clientId !== '') {
                 $payload['client_id'] = $clientId;
             }
+            $products = Gateway::decodeCreationProducts(PaymentRepository::getMeta($paymentId, Gateway::CREATION_PRODUCTS_META));
+            if ($products !== null) {
+                $payload['products'] = $products;
+            }
             $invoice = self::client($environment)->invoices()->create($payload);
             $invoiceId = isset($invoice['invoice_id']) && is_string($invoice['invoice_id']) ? $invoice['invoice_id'] : '';
             $lock->assertOwned();

@@ -272,3 +272,77 @@ function test_edd_webhook_answers_409_while_the_event_is_still_being_processed()
     $owner->release();
     assertSameValue('pending', $GLOBALS['paymos_edd_payments'][100]['status'], 'nothing may be applied while the event is in flight.');
 }
+
+function test_edd_webhook_pending_intent_recovery_replays_exact_decoded_creation_products()
+{
+    paymos_edd_reset_test_state();
+    paymos_edd_seed_payment();
+    $products = array(
+        array(
+            'title' => 'Edition "Alpha" \\ <1>',
+            'quantity' => 2,
+            'unit_amount' => '15.00',
+            'description' => "Line 1\nLine 2 — Ω 🚀",
+            'image_url' => 'https://shop.example/alpha.webp',
+        ),
+        array(
+            'title' => 'Notebook',
+            'quantity' => 1,
+            'unit_amount' => '12.50',
+        ),
+    );
+    $GLOBALS['paymos_edd_payment_meta'][100]['_paymos_invoice_id'] = '';
+    $GLOBALS['paymos_edd_payment_meta'][100]['_paymos_creation_intent'] = 'pending';
+    $GLOBALS['paymos_edd_payment_meta'][100]['_paymos_client_id'] = '77';
+    $GLOBALS['paymos_edd_payment_meta'][100][PaymosEasyDigitalDownloads\Gateway::CREATION_PRODUCTS_META] = base64_encode(
+        json_encode($products, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)
+    );
+
+    $event = paymos_edd_invoice_event('evt_pending_products', 'invoice.paid', 'paid');
+    $invoice = paymos_edd_api_invoice($event);
+    $transport = new Paymos\Http\MockTransport(array(
+        new Paymos\Http\HttpResponse(200, json_encode($invoice), array('content-type' => 'application/json')),
+        new Paymos\Http\HttpResponse(200, json_encode($invoice), array('content-type' => 'application/json')),
+    ));
+    $client = new Paymos\Client(new Paymos\ClientConfig('pk_test', 'sk_test', 'https://api.paymos.test', 30), $transport);
+    WebhookController::set_client_factory_for_tests(static function () use ($client) {
+        return $client;
+    });
+
+    $response = paymos_edd_deliver($event);
+    assertSameValue(200, $response->get_status(), 'Pending intent with encoded products recovers and completes.');
+    $requests = $transport->requests();
+    assertSameValue(array('POST', 'GET'), array_column($requests, 'method'), 'Webhook recovery runs independent POST then reverse GET.');
+    $recoveredPayload = json_decode((string) $requests[0]['body'], true);
+    assertSameValue('77', $recoveredPayload['client_id'], 'Recovered POST retains client_id.');
+    assertSameValue($products, $recoveredPayload['products'], 'Recovered POST replays exact decoded products including special characters and Unicode.');
+    assertSameValue('publish', edd_get_payment_status(100), 'Recovered order completes.');
+}
+
+function test_edd_webhook_pending_intent_ignores_legacy_missing_or_corrupt_products_meta()
+{
+    foreach (array('missing' => '', 'corrupt_raw_json' => '[{"title":"X","quantity":1,"unit_amount":"100.00"}]') as $case => $metaValue) {
+        paymos_edd_reset_test_state();
+        paymos_edd_seed_payment();
+        $GLOBALS['paymos_edd_payment_meta'][100]['_paymos_invoice_id'] = '';
+        $GLOBALS['paymos_edd_payment_meta'][100]['_paymos_creation_intent'] = 'pending';
+        if ($metaValue !== '') {
+            $GLOBALS['paymos_edd_payment_meta'][100][PaymosEasyDigitalDownloads\Gateway::CREATION_PRODUCTS_META] = $metaValue;
+        }
+
+        $event = paymos_edd_invoice_event('evt_pending_' . $case, 'invoice.paid', 'paid');
+        $invoice = paymos_edd_api_invoice($event);
+        $transport = new Paymos\Http\MockTransport(array(
+            new Paymos\Http\HttpResponse(200, json_encode($invoice), array('content-type' => 'application/json')),
+            new Paymos\Http\HttpResponse(200, json_encode($invoice), array('content-type' => 'application/json')),
+        ));
+        $client = new Paymos\Client(new Paymos\ClientConfig('pk_test', 'sk_test', 'https://api.paymos.test', 30), $transport);
+        WebhookController::set_client_factory_for_tests(static function () use ($client) {
+            return $client;
+        });
+
+        assertSameValue(200, paymos_edd_deliver($event)->get_status(), $case . ': webhook recovery completes safely.');
+        $recoveredPayload = json_decode((string) $transport->requests()[0]['body'], true);
+        assertSameValue(false, array_key_exists('products', $recoveredPayload), $case . ': must fall back to amount-only without sending unvalidated/missing products.');
+    }
+}
