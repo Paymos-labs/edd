@@ -4,7 +4,7 @@ Tags: payments, stablecoin, usdt, usdc, easy digital downloads
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.8.1
+Stable tag: 1.8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -46,6 +46,9 @@ In a non-autoloaded WordPress option encrypted with AES-256-GCM using installati
 
 == Changelog ==
 
+= 1.8.2 =
+* chore: rebuild canonical CMS package
+
 = 1.8.1 =
 * fix(checkout): enforce PHP SDK compatibility across CMS packages
 * refactor(checkout): remove product images from invoice products
@@ -80,7 +83,4 @@ In a non-autoloaded WordPress option encrypted with AES-256-GCM using installati
 = 1.7.3 =
 * merge: integrate Windows WIP onto origin/main (CMS binding, SDK preview, dashboard, plugins, specs)
 * chore: bundle Paymos PHP SDK v1.10.2
-
-= 1.7.2 =
-* chore: rebuild canonical CMS package
 
