@@ -46,13 +46,13 @@ function test_edd_gateway_registers_gateway_and_settings()
     assertTrueValue(isset($settings['paymos']['paymos_webhook_url']), 'Paymos webhook URL setting should exist.');
 }
 
-function test_edd_composer_requires_php_sdk_1_10_0()
+function test_edd_composer_requires_php_sdk_1_11_0()
 {
     $composerPath = dirname(__DIR__) . '/composer.json';
     $composer = json_decode((string) file_get_contents($composerPath), true);
     assertTrueValue(is_array($composer), 'composer.json should decode to an array.');
     assertTrueValue(
-        isset($composer['require']['paymos/php-sdk']) && $composer['require']['paymos/php-sdk'] === '^1.10.0',
-        'EDD composer.json should require paymos/php-sdk ^1.10.0.'
+        isset($composer['require']['paymos/php-sdk']) && $composer['require']['paymos/php-sdk'] === '^1.11.0',
+        'EDD composer.json should require paymos/php-sdk ^1.11.0 for product presentation and existing retries.'
     );
 }

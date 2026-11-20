@@ -538,9 +538,14 @@ final class Gateway
             return null;
         }
 
-        $allowedKeys = array('title', 'quantity', 'unit_amount', 'description', 'image_url');
-        foreach ($decoded as $item) {
-            if (!is_array($item) || array_diff(array_keys($item), $allowedKeys)) {
+        $allowedKeys = array('title', 'quantity', 'unit_amount', 'description');
+        foreach ($decoded as $index => $item) {
+            if (!is_array($item)) {
+                return null;
+            }
+            // Remove only the retired key from this decoded copy, never from persisted base64 JSON.
+            unset($item['image_url']);
+            if (array_diff(array_keys($item), $allowedKeys)) {
                 return null;
             }
             if (!isset($item['title']) || !is_string($item['title']) || preg_match('//u', $item['title']) !== 1
@@ -558,10 +563,7 @@ final class Gateway
                 || trim($item['description']) === '' || strpos($item['description'], "\0") !== false)) {
                 return null;
             }
-            if (array_key_exists('image_url', $item) && (!is_string($item['image_url']) || preg_match('//u', $item['image_url']) !== 1
-                || preg_match('/\Ahttps:\/\//i', $item['image_url']) !== 1 || strpos($item['image_url'], "\0") !== false)) {
-                return null;
-            }
+            $decoded[$index] = $item;
         }
 
         return $decoded;
@@ -599,12 +601,10 @@ final class Gateway
 
             $downloadId = self::cartItemDownloadId($item);
             $description = self::cartItemDescription($item, $downloadId);
-            $imageUrl = self::cartItemImageUrl($item, $downloadId);
 
             $candidates[] = array(
                 'title' => $title,
                 'description' => $description,
-                'image_url' => $imageUrl,
                 'quantity' => $quantity,
                 'unit_amount' => $unitAmount,
             );
@@ -679,23 +679,6 @@ final class Gateway
         }
 
         return $description;
-    }
-
-    /**
-     * @param array<string, mixed> $item
-     */
-    private static function cartItemImageUrl(array $item, int $downloadId): ?string
-    {
-        if (isset($item['image_url']) && is_string($item['image_url'])) {
-            return $item['image_url'];
-        }
-        if ($downloadId > 0 && function_exists('get_the_post_thumbnail_url')) {
-            $url = get_the_post_thumbnail_url($downloadId, 'medium');
-            if (is_string($url) && $url !== '') {
-                return $url;
-            }
-        }
-        return null;
     }
 
     private static function assertCreatedInvoice(array $invoice, $expectedId)

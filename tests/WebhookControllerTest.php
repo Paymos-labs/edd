@@ -298,6 +298,10 @@ function test_edd_webhook_pending_intent_recovery_replays_exact_decoded_creation
         json_encode($products, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)
     );
 
+    $savedMeta = $GLOBALS['paymos_edd_payment_meta'][100][PaymosEasyDigitalDownloads\Gateway::CREATION_PRODUCTS_META];
+    $expectedProducts = $products;
+    unset($expectedProducts[0]['image_url']);
+
     $event = paymos_edd_invoice_event('evt_pending_products', 'invoice.paid', 'paid');
     $invoice = paymos_edd_api_invoice($event);
     $transport = new Paymos\Http\MockTransport(array(
@@ -315,7 +319,12 @@ function test_edd_webhook_pending_intent_recovery_replays_exact_decoded_creation
     assertSameValue(array('POST', 'GET'), array_column($requests, 'method'), 'Webhook recovery runs independent POST then reverse GET.');
     $recoveredPayload = json_decode((string) $requests[0]['body'], true);
     assertSameValue('77', $recoveredPayload['client_id'], 'Recovered POST retains client_id.');
-    assertSameValue($products, $recoveredPayload['products'], 'Recovered POST replays exact decoded products including special characters and Unicode.');
+    assertSameValue($expectedProducts, $recoveredPayload['products'], 'Recovered POST removes only the historical image key and preserves special characters and Unicode.');
+    assertSameValue($savedMeta, $GLOBALS['paymos_edd_payment_meta'][100][PaymosEasyDigitalDownloads\Gateway::CREATION_PRODUCTS_META], 'Webhook recovery must not rewrite historical base64 products meta.');
+    assertSameValue('prj_123', $recoveredPayload['project_id'], 'Webhook recovery retains the stored project.');
+    assertSameValue('edd_100_abc123', $recoveredPayload['external_order_id'], 'Webhook recovery retains the stored external identity.');
+    assertSameValue('100.00', $recoveredPayload['amount'], 'Webhook recovery retains the exact stored amount.');
+    assertSameValue('USD', $recoveredPayload['currency'], 'Webhook recovery retains the stored currency.');
     assertSameValue('publish', edd_get_payment_status(100), 'Recovered order completes.');
 }
 
