@@ -4,7 +4,7 @@ Tags: payments, stablecoin, usdt, usdc, easy digital downloads
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.8.3
+Stable tag: 1.8.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -46,6 +46,10 @@ In a non-autoloaded WordPress option encrypted with AES-256-GCM using installati
 
 == Changelog ==
 
+= 1.8.4 =
+* fix(plugins,sdk,ci): fix PrestaShop/Shopware6/CMS locale & scalar bugs, Python webhook digits, atomic mirror pushes, token redaction, and release CI reliability (BUG-1434..1437, BUG-1461..1467, BUG-1478..1481)
+* chore: rebuild canonical CMS package
+
 = 1.8.3 =
 * chore: rebuild canonical CMS package
 
@@ -78,8 +82,5 @@ In a non-autoloaded WordPress option encrypted with AES-256-GCM using installati
 * fix(woocommerce,edd): a network error during Connect keeps the flow alive
 
 = 1.7.5 =
-* chore: rebuild canonical CMS package
-
-= 1.7.4 =
 * chore: rebuild canonical CMS package
 

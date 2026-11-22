@@ -321,3 +321,35 @@ function test_edd_changed_purchase_recovers_historical_products_before_refusing_
     assertSameValue($encoded, $GLOBALS['paymos_edd_payment_meta'][100][Gateway::CREATION_PRODUCTS_META], 'Blocked replacement must leave the historical encoded products unchanged.');
     assertSameValue('edd_100_abc123', $GLOBALS['paymos_edd_payment_meta'][100]['_paymos_external_order_id'], 'An open original invoice must not receive a new external identity.');
 }
+
+function test_edd_gateway_formats_float_item_prices_locale_independently()
+{
+    // BUG-1467: PHP 7.4 LC_NUMERIC comma-decimal locales must never turn float item_price into "24,5".
+    paymos_edd_reset_test_state();
+    paymos_edd_configure_sandbox_for_gateway_tests();
+    $previousLocale = setlocale(LC_NUMERIC, '0');
+    setlocale(LC_NUMERIC, 'de_DE.UTF-8', 'de_DE', 'German_Germany.1252', 'fr_FR.UTF-8', 'French_France.1252');
+    try {
+        $invoices = new FakePaymosInvoices();
+        Gateway::set_client_factory_for_tests(static function () use ($invoices) {
+            return new FakePaymosClient($invoices);
+        });
+        Gateway::process_payment(paymos_edd_purchase(array(
+            'price' => '44.49',
+            'cart_details' => array(
+                array('id' => 10, 'name' => 'Item A', 'quantity' => 1, 'item_price' => 24.5),
+                array('id' => 11, 'name' => 'Item B', 'quantity' => 1, 'item_price' => 19.99),
+                array('id' => 12, 'name' => 'Micro', 'quantity' => 1, 'item_price' => 1e-9),
+                array('id' => 13, 'name' => 'Free', 'quantity' => 1, 'item_price' => 0.0),
+            ),
+        )));
+        assertSameValue('24.5', $invoices->payloads[0]['products'][0]['unit_amount'], 'Float 24.5 formats dot-decimal.');
+        assertSameValue('19.99', $invoices->payloads[0]['products'][1]['unit_amount'], 'Float 19.99 keeps exact cents.');
+        assertSameValue('0.000000001', $invoices->payloads[0]['products'][2]['unit_amount'], 'Scientific float formats dot-decimal.');
+        assertSameValue('0', $invoices->payloads[0]['products'][3]['unit_amount'], 'Zero float formats cleanly.');
+    } finally {
+        if (is_string($previousLocale)) {
+            setlocale(LC_NUMERIC, $previousLocale);
+        }
+    }
+}
