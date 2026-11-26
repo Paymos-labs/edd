@@ -1,10 +1,15 @@
 # Paymos for Easy Digital Downloads
 
+**English** | [简体中文](README.zh-CN.md) | [Русский](README.ru.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [Türkçe](README.tr.md)
+
 Official Paymos gateway for Easy Digital Downloads. The buyer picks it at checkout, pays a
 stablecoin invoice on the Paymos hosted page, and returns to a pending order. The order becomes
 `complete` — the status at which EDD releases the download links and sends its purchase receipt —
 when a signed webhook reports the transfer confirmed on-chain. Returning from the payment page is
 not what unlocks the file.
+
+[![Watch: 12 Official CMS Crypto Plugins — 1-Click Connect (Paymos)](https://i.ytimg.com/vi/VMLUGVumYkg/maxresdefault.jpg)](https://www.youtube.com/watch?v=VMLUGVumYkg)
+> **Video walkthrough (1:12, subtitles in 6 languages):** [Watch on YouTube](https://www.youtube.com/watch?v=VMLUGVumYkg)
 
 ## Requirements
 
