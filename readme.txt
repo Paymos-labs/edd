@@ -4,7 +4,7 @@ Tags: payments, stablecoin, usdt, usdc, easy digital downloads
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.8.9
+Stable tag: 1.8.10
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -46,6 +46,12 @@ In a non-autoloaded WordPress option encrypted with AES-256-GCM using installati
 
 == Changelog ==
 
+= 1.8.10 =
+* fix(edd): require php-sdk ^1.12.0 for the refund re-read store
+
+Fixed:
+* **PHP SDK floor:** `composer.json` now requires `paymos/php-sdk` `^1.12.0`, the first release with `RefundCandidateStoreInterface`; a Composer install can no longer resolve a 1.11.x SDK that lacks it.
+
 = 1.8.9 =
 * fix(edd): definitive Connect refusals, exact item prices, refund re-read
 
@@ -82,10 +88,5 @@ Fixed:
 * fix(checkout): enforce PHP SDK compatibility across CMS packages
 * refactor(checkout): remove product images from invoice products
 * chore: bundle Paymos PHP SDK v1.11.1
-* chore: rebuild canonical CMS package
-
-= 1.8.0 =
-* feat(plugins): add products[] to WooCommerce and EDD (9.1)
-* chore: bundle Paymos PHP SDK v1.11.0
 * chore: rebuild canonical CMS package
 

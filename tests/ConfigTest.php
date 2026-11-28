@@ -52,7 +52,7 @@ function test_edd_composer_requires_php_sdk_1_11_0()
     $composer = json_decode((string) file_get_contents($composerPath), true);
     assertTrueValue(is_array($composer), 'composer.json should decode to an array.');
     assertTrueValue(
-        isset($composer['require']['paymos/php-sdk']) && $composer['require']['paymos/php-sdk'] === '^1.11.0',
-        'EDD composer.json should require paymos/php-sdk ^1.11.0 for product presentation and existing retries.'
+        isset($composer['require']['paymos/php-sdk']) && $composer['require']['paymos/php-sdk'] === '^1.12.0',
+        'EDD composer.json should require paymos/php-sdk ^1.12.0 for product presentation, existing retries and the refund re-read store.'
     );
 }
