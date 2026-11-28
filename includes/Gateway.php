@@ -638,16 +638,34 @@ final class Gateway
             if ($raw == 0.0) {
                 return '0';
             }
-            $formatted = json_encode($raw);
-            if (!is_string($formatted) || $formatted === '' || strpos($formatted, ',') !== false || stripos($formatted, 'e') !== false) {
-                $formatted = rtrim(rtrim(sprintf('%.18F', $raw), '0'), '.');
-            }
+            $formatted = self::shortestDecimal($raw);
             if ($formatted === '' || $formatted === '0') {
                 return null;
             }
             return $formatted;
         }
         return null;
+    }
+
+    /**
+     * The shortest plain decimal (up to 18 places) that reads back as the same
+     * float. json_encode() gave the same digits only with the default
+     * serialize_precision=-1; a host on the legacy 17 printed 19.99 as
+     * 19.989999999999998. number_format() ignores both that setting and the
+     * locale.
+     */
+    private static function shortestDecimal(float $raw): string
+    {
+        $exponent = (int) floor(log10($raw));
+        $candidate = '';
+        for ($digits = 15; $digits <= 17; $digits++) {
+            $candidate = number_format($raw, min(18, max(0, $digits - 1 - $exponent)), '.', '');
+            if ((float) $candidate === $raw) {
+                break;
+            }
+        }
+
+        return strpos($candidate, '.') === false ? $candidate : rtrim(rtrim($candidate, '0'), '.');
     }
 
     /**

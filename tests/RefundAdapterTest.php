@@ -450,6 +450,54 @@ function test_edd_refund_production_store_commits_intent_before_return_and_prese
     } finally { $GLOBALS['wpdb'] = $originalDb; }
 }
 
+/**
+ * BUG-1347 (feature-audit 3.11): the server accepted the refund POST, but the
+ * reverse read right after it answered a temporary 401/403/404. The next
+ * reconcile reads again and the completed refund is projected.
+ */
+function test_edd_refund_accepted_refund_survives_a_temporary_reverse_read_failure()
+{
+    foreach (array(401, 403, 404) as $status) {
+        list($adapter, $store, $transport) = edd_refund_harness();
+        $transport->refundReadFailures = array($status);
+        $intent = $adapter->request('100', 'overpayment', 'read_retry_token_' . $status);
+        assertSameValue(1, count(edd_refund_posts($transport)), $status . ': the refund was accepted once.');
+
+        $id = array_keys($transport->refunds)[0];
+        $transport->refunds[$id]['status'] = 'completed';
+        $adapter->reconcile($intent->operationId());
+
+        $after = $store->getIntent($intent->operationId());
+        assertSameValue($id, $after->withdrawalId(), $status . ': the accepted refund is bound after the read recovers.');
+        assertSameValue('completed', $after->cashState(), $status . ': the cash refund is completed.');
+        assertSameValue('applied', $after->projectionState(), $status . ': the refund is projected into EDD.');
+        assertSameValue(1, count($GLOBALS['paymos_edd_payment_notes'][100]), $status . ': one cash note on the order.');
+        assertSameValue(1, count(edd_refund_posts($transport)), $status . ': no second refund is sent.');
+    }
+}
+
+function test_edd_refund_production_store_keeps_and_clears_the_read_candidate()
+{
+    list($adapter) = edd_refund_harness();
+    $template = $adapter->request('100', 'full', 'candidate_store_token')->toArray();
+    $template = array_replace($template, array('cash_state' => 'not_submitted', 'withdrawal_id' => null,
+        'observation' => null, 'projection_state' => 'none', 'projection' => null, 'effects' => array()));
+    $originalDb = $GLOBALS['wpdb']; $db = new EddRefundDatabase(); $GLOBALS['wpdb'] = $db;
+    try {
+        $store = new PaymosEasyDigitalDownloads\RefundIntentStore();
+        assertTrueValue($store instanceof Paymos\Plugin\RefundCandidateStoreInterface, 'The store keeps read candidates for the coordinator.');
+        $store->withPaymentLock('100', static function () use ($store, $template) {
+            $intent = $store->createIntent(new Paymos\Plugin\RefundIntent($template));
+            $store->recordReadCandidate($intent->operationId(), 'wdl_candidate', 1);
+            assertSameValue('wdl_candidate', $store->getIntent($intent->operationId())->candidateWithdrawalId(), 'The candidate survives a reload.');
+            assertSameValue(1, $store->getIntent($intent->operationId())->readRetryCount(), 'The retry count survives a reload.');
+            assertSameValue(null, $store->getIntent($intent->operationId())->withdrawalId(), 'A candidate is never a binding.');
+            $store->recordReadCandidate($intent->operationId(), null, 0);
+            assertSameValue(null, $store->getIntent($intent->operationId())->candidateWithdrawalId(), 'The candidate is cleared.');
+        });
+    } finally { $GLOBALS['wpdb'] = $originalDb; }
+}
+
 function test_edd_ton_raw_pin_accepts_friendly_same_account_and_rejects_another()
 {
     require_once __DIR__ . '/CmsTonPinContract.php';

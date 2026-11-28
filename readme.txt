@@ -4,7 +4,7 @@ Tags: payments, stablecoin, usdt, usdc, easy digital downloads
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.8.8
+Stable tag: 1.8.9
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -46,6 +46,14 @@ In a non-autoloaded WordPress option encrypted with AES-256-GCM using installati
 
 == Changelog ==
 
+= 1.8.9 =
+* fix(edd): definitive Connect refusals, exact item prices, refund re-read
+
+Fixed:
+* **Connect hid a definitive refusal behind "retry" (`ConnectController`):** Any error while polling Paymos Connect, including the server's own refusal (for example the limit of 10 webhook endpoints) or a success without a usable configuration, was answered as `retry`, so the page polled until the request expired and the reason was lost. Only network failures, 408, 429 and 5xx are retried now; any other answer ends the request and shows its reason.
+* **Item price with a long tail on some hosts (`Gateway`):** A float item price was formatted with `json_encode()`, which follows `serialize_precision`; on hosts that keep the legacy value 17, `19.99` reached checkout as `19.989999999999998`. The price is now formatted to its shortest exact decimal regardless of that setting and the locale.
+* **Accepted refund stuck after a temporary read failure (`RefundIntentStore`):** When the server accepted the refund but the read right after it answered a temporary 401/403/404, the refund stayed in `refund_read_unavailable` for good. The store now keeps the unverified withdrawal id (`RefundCandidateStoreInterface`), so the next check reads it again and records the refund in EDD.
+
 = 1.8.8 =
 * chore: rebuild canonical CMS package
 
@@ -79,8 +87,5 @@ In a non-autoloaded WordPress option encrypted with AES-256-GCM using installati
 = 1.8.0 =
 * feat(plugins): add products[] to WooCommerce and EDD (9.1)
 * chore: bundle Paymos PHP SDK v1.11.0
-* chore: rebuild canonical CMS package
-
-= 1.7.9 =
 * chore: rebuild canonical CMS package
 

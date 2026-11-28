@@ -322,6 +322,36 @@ function test_edd_changed_purchase_recovers_historical_products_before_refusing_
     assertSameValue('edd_100_abc123', $GLOBALS['paymos_edd_payment_meta'][100]['_paymos_external_order_id'], 'An open original invoice must not receive a new external identity.');
 }
 
+function test_edd_gateway_formats_float_item_prices_independently_of_serialize_precision()
+{
+    // CMSP-54: hosts that keep the legacy serialize_precision=17 made json_encode
+    // print 19.99 as "19.989999999999998", and the buyer read that price.
+    paymos_edd_reset_test_state();
+    paymos_edd_configure_sandbox_for_gateway_tests();
+    $previousPrecision = ini_get('serialize_precision');
+    ini_set('serialize_precision', '17');
+    try {
+        $invoices = new FakePaymosInvoices();
+        Gateway::set_client_factory_for_tests(static function () use ($invoices) {
+            return new FakePaymosClient($invoices);
+        });
+        Gateway::process_payment(paymos_edd_purchase(array(
+            'price' => '1278.88',
+            'cart_details' => array(
+                array('id' => 10, 'name' => 'Item A', 'quantity' => 1, 'item_price' => 19.99),
+                array('id' => 11, 'name' => 'Item B', 'quantity' => 1, 'item_price' => 1234567.891),
+                array('id' => 12, 'name' => 'Item C', 'quantity' => 1, 'item_price' => 0.1 + 0.2),
+            ),
+        )));
+        $products = $invoices->payloads[0]['products'];
+        assertSameValue('19.99', $products[0]['unit_amount'], 'Float 19.99 keeps exact cents.');
+        assertSameValue('1234567.891', $products[1]['unit_amount'], 'A large float keeps its shortest digits.');
+        assertSameValue('0.30000000000000004', $products[2]['unit_amount'], 'A float that needs 17 digits keeps them.');
+    } finally {
+        ini_set('serialize_precision', (string) $previousPrecision);
+    }
+}
+
 function test_edd_gateway_formats_float_item_prices_locale_independently()
 {
     // BUG-1467: PHP 7.4 LC_NUMERIC comma-decimal locales must never turn float item_price into "24,5".

@@ -209,6 +209,7 @@ namespace {
         public function recordObservation(string $id, \Paymos\Plugin\VerifiedRefund $snapshot): void { $this->intents[$id]['observation'] = $snapshot->toArray(); }
         public function recordProjection(string $id, \Paymos\Plugin\NativeProjectionResult $result): void { $this->intents[$id]['projection'] = $result->toArray(); }
         public function recordState(string $id, string $cash, string $projection, ?string $reason): void { $this->intents[$id] = array_replace($this->intents[$id], array('cash_state' => $cash, 'projection_state' => $projection, 'review_reason' => $reason)); }
+        public function recordReadCandidate(string $id, ?string $candidate, int $retryCount): void { $this->intents[$id] = array_replace($this->intents[$id], array('candidate_withdrawal_id' => $candidate, 'read_retry_count' => $retryCount)); }
         public function claimEffect(string $id, string $kind, int $generation): \Paymos\Plugin\EffectClaim
         {
             if ($this->depth !== 0) { throw new \RuntimeException('refund_effect_must_commit'); }
@@ -248,6 +249,8 @@ namespace {
         public $loseAllReplies = false;
         public $tamperProject = false;
         public $beforeGet;
+        /** Statuses the next refund reads answer with (temporary 401/403/404 after an accepted POST). */
+        public $refundReadFailures = array();
         public function request($method, $url, array $headers, $body, $timeoutSeconds)
         {
             if ($this->store->depth !== 0) { throw new \RuntimeException('HTTP_inside_DB_transaction'); }
@@ -264,6 +267,11 @@ namespace {
                 if ($this->loseReply || $this->loseAllReplies) { $this->loseReply = false; throw new \RuntimeException('HTTP_reply_lost_after_server_commit'); }
                 $data = $this->refunds[$id];
             } elseif (strpos($path, '/v1/refunds/') === 0) {
+                if ($this->refundReadFailures) {
+                    $status = (int) array_shift($this->refundReadFailures);
+                    return new \Paymos\Http\HttpResponse($status, json_encode(array('type' => 'https://api.paymos.io/errors/unavailable', 'title' => 'Unavailable',
+                        'status' => $status, 'detail' => 'Simulated temporary refund read failure', 'code' => 'refund_not_found')), array('content-type' => 'application/problem+json'));
+                }
                 if ($this->beforeGet) { $callback = $this->beforeGet; $this->beforeGet = null; $callback(); }
                 $data = $this->refunds[basename($path)];
                 if ($this->tamperProject) { $data['project_id'] = 'prj_foreign'; }

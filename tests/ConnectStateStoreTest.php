@@ -78,6 +78,41 @@ function test_edd_connect_transport_error_keeps_the_flow()
     assertSameValue('device-A', ConnectStateStore::load()['device_code'], 'The same device code is polled again.');
 }
 
+/**
+ * CMSP-53: a poll the server answered for good (an error with its reason, or a
+ * success without a usable configuration) is not a transport failure. The page
+ * stops polling and shows the reason instead of retrying until the request
+ * expires and the reason is lost.
+ */
+function test_edd_connect_definitive_server_answer_ends_polling_with_its_reason()
+{
+    foreach (array(
+        'webhook_limit' => array(400, '{"error":"invalid_request","error_description":"Maximum 10 webhook endpoints per environment reached."}', 'Maximum 10 webhook endpoints per environment reached.'),
+        'no_config' => array(200, '{"access_token":"x"}', 'Paymos returned no CMS configuration.'),
+    ) as $case => list($code, $body, $reason)) {
+        paymos_edd_reset_test_state();
+        $_POST = array('flow_id' => ConnectStateStore::save(paymos_edd_connect_state()));
+        $GLOBALS['paymos_edd_remote_handler'] = static function () use ($code, $body) {
+            return array('response' => array('code' => $code), 'body' => $body, 'headers' => array());
+        };
+        PaymosEasyDigitalDownloads\ConnectController::poll();
+        assertSameValue(false, $GLOBALS['paymos_edd_refund_json']['success'], $case . ': polling ends.');
+        assertContainsValue($reason, $GLOBALS['paymos_edd_refund_json']['data']['message'], $case . ': the merchant reads the reason.');
+        assertSameValue(array(), ConnectStateStore::load(), $case . ': the connection request is cleared.');
+    }
+
+    // A server that is down for a moment says nothing about the device code.
+    paymos_edd_reset_test_state();
+    $flow = ConnectStateStore::save(paymos_edd_connect_state());
+    $_POST = array('flow_id' => $flow);
+    $GLOBALS['paymos_edd_remote_handler'] = static function () {
+        return array('response' => array('code' => 503), 'body' => '<html>Service Unavailable</html>', 'headers' => array());
+    };
+    PaymosEasyDigitalDownloads\ConnectController::poll();
+    assertSameValue('retry', $GLOBALS['paymos_edd_refund_json']['data']['status'], '503: the page polls again.');
+    assertSameValue($flow, ConnectStateStore::load()['flow_id'], '503: the connection request is kept.');
+}
+
 function test_edd_connect_refusal_or_foreign_store_clears_the_flow()
 {
     foreach (array(
